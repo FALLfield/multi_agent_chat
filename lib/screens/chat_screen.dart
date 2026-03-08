@@ -2,19 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import '../services/group_service.dart';
+import '../services/auth_service.dart';
 import '../services/export_helper.dart';
-
-import 'package:flutter_animate/flutter_animate.dart';
 
 import '../theme/theme_service.dart';
 import '../services/chat_service.dart';
 import '../widgets/chat_message_widget.dart';
-import '../models/user_persona.dart';
-import 'settings_dialog.dart';
+import '../models/group.dart';
+import 'group_settings_dialog.dart';
 import 'agent_list_screen.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  final Group? group;
+
+  const ChatScreen({super.key, this.group});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -32,17 +34,26 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  void _checkFirstUser() {
+  Future<void> _checkFirstUser() async {
     if (_hasCheckedUser) return;
     _hasCheckedUser = true;
+
+    // Capture context-dependent values before any async gap
     final chatService = Provider.of<ChatService>(context, listen: false);
-    if (chatService.users.length == 1 &&
-        chatService.users[0].name == 'User 1') {
+    final bool isFirstUser =
+        chatService.users.length == 1 && chatService.users[0].name == 'User 1';
+    final group = widget.group;
+
+    if (isFirstUser && mounted) {
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => const _WelcomeUserDialog(),
       );
+    }
+
+    if (group != null) {
+      await chatService.enterGroupMode(group);
     }
   }
 
@@ -147,7 +158,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('New Discussion'),
+        title: Text(widget.group?.name ?? 'New Discussion'),
         centerTitle: false,
         actions: [
           Consumer<ChatService>(
@@ -189,16 +200,18 @@ class _ChatScreenState extends State<ChatScreen> {
             onPressed: themeService.toggleTheme,
             tooltip: 'Toggle Theme',
           ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => const SettingsDialog(),
-              );
-            },
-            tooltip: 'API Settings',
-          ),
+          if (widget.group != null)
+            IconButton(
+              icon: const Icon(Icons.settings_applications),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) =>
+                      GroupSettingsDialog(group: widget.group!),
+                );
+              },
+              tooltip: 'Group Settings ⚙',
+            ),
         ],
       ),
       drawer: const _ChatDrawer(),
@@ -209,6 +222,15 @@ class _ChatScreenState extends State<ChatScreen> {
               builder: (context, chatService, child) {
                 final messages = chatService.messages;
                 if (messages.isEmpty) {
+                  // Use Firebase Auth display name for the greeting
+                  final authService = Provider.of<AuthService>(
+                    context,
+                    listen: false,
+                  );
+                  final displayName =
+                      authService.currentUser?.displayName ??
+                      authService.currentUser?.email ??
+                      'there';
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -222,7 +244,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                         const SizedBox(height: 24),
                         Text(
-                          'Hello, ${chatService.currentUser?.name ?? "User"}.\nWhat can we discuss today?',
+                          'Hello, $displayName.\nWhat can we discuss today?',
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.headlineSmall
                               ?.copyWith(
@@ -246,18 +268,13 @@ class _ChatScreenState extends State<ChatScreen> {
                     if (index == 0) {
                       return _buildSessionInfoCard(chatService);
                     }
-                    return ChatMessageWidget(
-                          key: ValueKey(messages[index - 1].id),
-                          message: messages[index - 1],
-                          onReply: _handleReply,
-                        )
-                        .animate()
-                        .fadeIn(duration: 300.ms)
-                        .slideY(
-                          begin: 0.1,
-                          duration: 300.ms,
-                          curve: Curves.easeOutCubic,
-                        );
+                    return _AnimatedMessageEntry(
+                      key: ValueKey(messages[index - 1].id),
+                      child: ChatMessageWidget(
+                        message: messages[index - 1],
+                        onReply: _handleReply,
+                      ),
+                    );
                   },
                 );
               },
@@ -407,6 +424,49 @@ class _ChatDrawer extends StatelessWidget {
                           ),
                         ),
                         selected: isActive,
+                        trailing: IconButton(
+                          icon: const Icon(Icons.edit_outlined, size: 16),
+                          tooltip: 'Rename',
+                          onPressed: () {
+                            final ctrl = TextEditingController(
+                              text: session.title,
+                            );
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Rename Discussion'),
+                                content: TextField(
+                                  controller: ctrl,
+                                  autofocus: true,
+                                  decoration: const InputDecoration(
+                                    labelText: 'New name',
+                                    border: OutlineInputBorder(),
+                                  ),
+                                  onSubmitted: (val) {
+                                    chatService.renameSession(session.id, val);
+                                    Navigator.pop(ctx);
+                                  },
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      chatService.renameSession(
+                                        session.id,
+                                        ctrl.text,
+                                      );
+                                      Navigator.pop(ctx);
+                                    },
+                                    child: const Text('Save'),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
                         onTap: () {
                           chatService.loadSession(session.id);
                           Navigator.pop(context);
@@ -474,35 +534,77 @@ class _ChatDrawer extends StatelessWidget {
               },
             ),
             const Divider(),
-            // User section
-            Consumer<ChatService>(
-              builder: (context, chatService, child) {
-                if (chatService.users.isEmpty) return const SizedBox.shrink();
-                return ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.person)),
-                  title: Text('Current: ${chatService.currentUser?.name}'),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, size: 20, color: Colors.red),
-                    onPressed: () {
-                      if (chatService.currentUser != null) {
-                        chatService.deleteUser(chatService.currentUser!.id);
-                      }
-                    },
-                  ),
-                );
-              },
-            ),
             ListTile(
-              leading: const CircleAvatar(
-                child: Icon(Icons.person_add, size: 16),
+              leading: const Icon(Icons.exit_to_app, color: Colors.orange),
+              title: const Text(
+                'Leave / Delete Group',
+                style: TextStyle(color: Colors.orange),
               ),
-              title: const Text('Add New User'),
-              subtitle: const Text('Create a new sender identity'),
               onTap: () {
-                Navigator.pop(context); // close drawer
+                Navigator.pop(context); // Close Drawer
+                final chatService = Provider.of<ChatService>(
+                  context,
+                  listen: false,
+                );
+                final groupService = Provider.of<GroupService>(
+                  context,
+                  listen: false,
+                );
+                final group = groupService.activeGroup;
+
+                if (group == null) return;
+
                 showDialog(
                   context: context,
-                  builder: (context) => const _NewUserDialog(),
+                  builder: (context) => AlertDialog(
+                    title: const Text('Leave Group'),
+                    content: Text(
+                      group.isLeader(chatService.currentUser?.id ?? '')
+                          ? 'Are you sure you want to dismiss this group? This action will remove the group for all members.'
+                          : 'Are you sure you want to leave this group?',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () async {
+                          Navigator.pop(context); // Close dialog
+
+                          // Signal UI loading
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Processing...')),
+                          );
+
+                          final success = await groupService.leaveOrDeleteGroup(
+                            group,
+                          );
+
+                          if (success && context.mounted) {
+                            chatService.exitGroupMode();
+                            Navigator.of(
+                              context,
+                            ).popUntil((route) => route.isFirst);
+                          } else if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  groupService.errorMessage ??
+                                      'Operation failed',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        child: const Text('Confirm'),
+                      ),
+                    ],
+                  ),
                 );
               },
             ),
@@ -650,37 +752,6 @@ class _ChatInputAreaState extends State<_ChatInputArea> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Consumer<ChatService>(
-              builder: (context, chatService, child) {
-                if (chatService.users.isEmpty) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0, right: 8.0),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<UserPersona>(
-                      value: chatService.currentUser,
-                      icon: const Icon(Icons.arrow_drop_down, size: 16),
-                      items: chatService.users.map((u) {
-                        return DropdownMenuItem(
-                          value: u,
-                          child: Text(
-                            u.name,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                      onChanged: (UserPersona? newUser) {
-                        if (newUser != null) {
-                          chatService.setCurrentUser(newUser);
-                        }
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
             IconButton(
               icon: const Icon(Icons.add_circle_outline),
               color: isDark ? Colors.white54 : Colors.black54,
@@ -783,5 +854,45 @@ class _WelcomeUserDialogState extends State<_WelcomeUserDialog> {
         ),
       ],
     );
+  }
+}
+
+/// Safe fade-in entry animation for message items.
+/// Only uses FadeTransition (no position transform) to avoid
+/// shifted_box.dart layout assertion errors on the Web renderer.
+class _AnimatedMessageEntry extends StatefulWidget {
+  final Widget child;
+
+  const _AnimatedMessageEntry({super.key, required this.child});
+
+  @override
+  State<_AnimatedMessageEntry> createState() => _AnimatedMessageEntryState();
+}
+
+class _AnimatedMessageEntryState extends State<_AnimatedMessageEntry>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _opacity = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(opacity: _opacity, child: widget.child);
   }
 }

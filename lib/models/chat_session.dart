@@ -3,11 +3,13 @@ class ChatSession {
   final String title;
   final DateTime createdAt;
   final String? summary; // Condensed memory of past discussion rounds
+  final String groupId; // The group this session belongs to
 
   ChatSession({
     required this.id,
     required this.title,
     required this.createdAt,
+    required this.groupId,
     this.summary,
   });
 
@@ -17,6 +19,7 @@ class ChatSession {
       'title': title,
       'createdAt': createdAt.toIso8601String(),
       'summary': summary,
+      'groupId': groupId,
     };
   }
 
@@ -25,6 +28,7 @@ class ChatSession {
       id: map['id'],
       title: map['title'],
       createdAt: DateTime.parse(map['createdAt']),
+      groupId: map['groupId'] ?? '',
       summary: map['summary'] as String?,
     );
   }

@@ -10,12 +10,14 @@ class ChatMessage {
   final bool isConclusion;
   final String? senderName; // Name of the user who sent this message
   final String? replyTo; // "@Name" - who this message is replying to
+  final String groupId; // The group this message belongs to
 
   const ChatMessage({
     required this.id,
     required this.text,
     required this.createdAt,
     required this.isUser,
+    required this.groupId,
     this.agent,
     this.sessionId,
     this.isConclusion = false,
@@ -34,6 +36,7 @@ class ChatMessage {
       'isConclusion': isConclusion ? 1 : 0,
       'senderName': senderName,
       'replyTo': replyTo,
+      'groupId': groupId,
     };
   }
 
@@ -49,6 +52,7 @@ class ChatMessage {
       isConclusion: (map['isConclusion'] ?? 0) == 1,
       senderName: map['senderName'] as String?,
       replyTo: map['replyTo'] as String?,
+      groupId: map['groupId'] as String? ?? '',
     );
   }
 }

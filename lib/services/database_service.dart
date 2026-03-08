@@ -1,103 +1,27 @@
+// ignore_for_file: depend_on_referenced_packages
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
 import '../models/chat_session.dart';
 import '../models/chat_message.dart';
 import '../models/agent_persona.dart';
 import '../models/user_persona.dart';
 
+// Conditional import: on web builds dart2js only sees the stub (no sqflite).
+// On native (dart:io) the real sqflite backend is loaded.
+import 'db_backend_stub.dart'
+    if (dart.library.io) 'db_backend_native.dart'
+    as native_db;
+
 /// Platform-adaptive storage service.
-/// • Web  → SharedPreferences (browser localStorage, zero config)
-/// • Native → sqflite (SQLite)
-///
-/// The public API is identical on both platforms so the rest of the
-/// app never needs to know which backend is in use.
+/// • Web    → SharedPreferences (browser localStorage)
+/// • Native → sqflite via [db_backend_native.dart]
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
   factory DatabaseService() => _instance;
   DatabaseService._internal();
 
-  // ── Native only ──────────────────────────────────────────────────────────
-  static Database? _database;
-
-  Future<Database> get _db async {
-    if (_database != null) return _database!;
-    _database = await _initSqflite();
-    return _database!;
-  }
-
-  Future<Database> _initSqflite() async {
-    final path = join(await getDatabasesPath(), 'multi_agent_chat.db');
-    return openDatabase(
-      path,
-      version: 7,
-      onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
-    );
-  }
-
-  Future<void> _onCreate(Database db, int version) async {
-    await db.execute('''
-      CREATE TABLE sessions(
-        id TEXT PRIMARY KEY, title TEXT, createdAt TEXT, summary TEXT
-      )
-    ''');
-    await db.execute('''
-      CREATE TABLE messages(
-        id TEXT PRIMARY KEY, text TEXT, createdAt TEXT,
-        isUser INTEGER, agentId TEXT, sessionId TEXT,
-        isConclusion INTEGER DEFAULT 0, senderName TEXT, replyTo TEXT,
-        FOREIGN KEY (sessionId) REFERENCES sessions (id) ON DELETE CASCADE
-      )
-    ''');
-    await db.execute('''
-      CREATE TABLE agents(
-        id TEXT PRIMARY KEY, name TEXT, systemInstruction TEXT,
-        provider TEXT, modelName TEXT
-      )
-    ''');
-    await db.execute('''
-      CREATE TABLE users(id TEXT PRIMARY KEY, name TEXT)
-    ''');
-  }
-
-  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 2) {
-      await db.execute('''
-        CREATE TABLE agents(
-          id TEXT PRIMARY KEY, name TEXT, systemInstruction TEXT,
-          provider TEXT, modelName TEXT
-        )
-      ''');
-    }
-    if (oldVersion < 3) {
-      await db.execute('CREATE TABLE users(id TEXT PRIMARY KEY, name TEXT)');
-    }
-    if (oldVersion < 4) {
-      await db.execute(
-        'ALTER TABLE messages ADD COLUMN isConclusion INTEGER DEFAULT 0',
-      );
-    }
-    if (oldVersion < 5) {
-      await db.execute('ALTER TABLE messages ADD COLUMN senderName TEXT');
-    }
-    if (oldVersion < 6) {
-      await db.execute('ALTER TABLE sessions ADD COLUMN summary TEXT');
-    }
-    if (oldVersion < 7) {
-      await db.execute('ALTER TABLE messages ADD COLUMN replyTo TEXT');
-    }
-  }
-
-  // ── Web helpers (SharedPreferences / localStorage) ────────────────────────
-  //
-  // Data layout in SharedPreferences:
-  //   'web_sessions'  → JSON list of session maps
-  //   'web_messages'  → JSON list of message maps
-  //   'web_agents'    → JSON list of agent maps
-  //   'web_users'     → JSON list of user maps
+  // ── Web helpers ────────────────────────────────────────────────────────────
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
@@ -115,7 +39,7 @@ class DatabaseService {
     await prefs.setString(key, jsonEncode(data));
   }
 
-  // ── Session Methods ───────────────────────────────────────────────────────
+  // ── Session Methods ────────────────────────────────────────────────────────
 
   Future<void> insertSession(ChatSession session) async {
     if (kIsWeb) {
@@ -124,45 +48,33 @@ class DatabaseService {
       list.add(session.toMap());
       await _webWrite('web_sessions', list);
     } else {
-      final db = await _db;
-      await db.insert(
-        'sessions',
-        session.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await native_db.insertSession(session);
     }
   }
 
   Future<void> updateSession(ChatSession session) async {
     if (kIsWeb) {
-      await insertSession(session); // upsert
+      await insertSession(session);
     } else {
-      final db = await _db;
-      await db.update(
-        'sessions',
-        session.toMap(),
-        where: 'id = ?',
-        whereArgs: [session.id],
-      );
+      await native_db.updateSession(session);
     }
   }
 
-  Future<List<ChatSession>> getSessions() async {
+  Future<List<ChatSession>> getSessions(String groupId) async {
     if (kIsWeb) {
       final list = await _webRead('web_sessions');
-      list.sort(
+      final filtered = list.where((m) => m['groupId'] == groupId).toList();
+      filtered.sort(
         (a, b) =>
             (b['createdAt'] as String).compareTo(a['createdAt'] as String),
       );
-      return list.map(ChatSession.fromMap).toList();
+      return filtered.map(ChatSession.fromMap).toList();
     } else {
-      final db = await _db;
-      final maps = await db.query('sessions', orderBy: 'createdAt DESC');
-      return maps.map(ChatSession.fromMap).toList();
+      return native_db.getSessions(groupId);
     }
   }
 
-  // ── Message Methods ───────────────────────────────────────────────────────
+  // ── Message Methods ────────────────────────────────────────────────────────
 
   Future<void> insertMessage(ChatMessage message) async {
     if (kIsWeb) {
@@ -171,26 +83,15 @@ class DatabaseService {
       list.add(message.toMap());
       await _webWrite('web_messages', list);
     } else {
-      final db = await _db;
-      await db.insert(
-        'messages',
-        message.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await native_db.insertMessage(message);
     }
   }
 
   Future<void> updateMessage(ChatMessage message) async {
     if (kIsWeb) {
-      await insertMessage(message); // upsert
+      await insertMessage(message);
     } else {
-      final db = await _db;
-      await db.update(
-        'messages',
-        message.toMap(),
-        where: 'id = ?',
-        whereArgs: [message.id],
-      );
+      await native_db.updateMessage(message);
     }
   }
 
@@ -207,13 +108,7 @@ class DatabaseService {
               (a['createdAt'] as String).compareTo(b['createdAt'] as String),
         );
     } else {
-      final db = await _db;
-      maps = await db.query(
-        'messages',
-        where: 'sessionId = ?',
-        whereArgs: [sessionId],
-        orderBy: 'createdAt ASC',
-      );
+      maps = await native_db.getMessagesForSession(sessionId);
     }
 
     return maps.map((map) {
@@ -228,7 +123,7 @@ class DatabaseService {
     }).toList();
   }
 
-  // ── Agent Methods ─────────────────────────────────────────────────────────
+  // ── Agent Methods ──────────────────────────────────────────────────────────
 
   Future<void> insertAgent(AgentPersona agent) async {
     if (kIsWeb) {
@@ -237,26 +132,15 @@ class DatabaseService {
       list.add(agent.toMap());
       await _webWrite('web_agents', list);
     } else {
-      final db = await _db;
-      await db.insert(
-        'agents',
-        agent.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await native_db.insertAgent(agent);
     }
   }
 
   Future<void> updateAgent(AgentPersona agent) async {
     if (kIsWeb) {
-      await insertAgent(agent); // upsert
+      await insertAgent(agent);
     } else {
-      final db = await _db;
-      await db.update(
-        'agents',
-        agent.toMap(),
-        where: 'id = ?',
-        whereArgs: [agent.id],
-      );
+      await native_db.updateAgent(agent);
     }
   }
 
@@ -266,23 +150,21 @@ class DatabaseService {
       list.removeWhere((m) => m['id'] == id);
       await _webWrite('web_agents', list);
     } else {
-      final db = await _db;
-      await db.delete('agents', where: 'id = ?', whereArgs: [id]);
+      await native_db.deleteAgent(id);
     }
   }
 
-  Future<List<AgentPersona>> getAgents() async {
+  Future<List<AgentPersona>> getAgents(String groupId) async {
     if (kIsWeb) {
       final list = await _webRead('web_agents');
-      return list.map(AgentPersona.fromMap).toList();
+      final filtered = list.where((m) => m['groupId'] == groupId).toList();
+      return filtered.map(AgentPersona.fromMap).toList();
     } else {
-      final db = await _db;
-      final maps = await db.query('agents');
-      return maps.map(AgentPersona.fromMap).toList();
+      return native_db.getAgents(groupId);
     }
   }
 
-  // ── User Methods ──────────────────────────────────────────────────────────
+  // ── User Methods ───────────────────────────────────────────────────────────
 
   Future<void> insertUser(UserPersona user) async {
     if (kIsWeb) {
@@ -291,12 +173,7 @@ class DatabaseService {
       list.add(user.toMap());
       await _webWrite('web_users', list);
     } else {
-      final db = await _db;
-      await db.insert(
-        'users',
-        user.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
+      await native_db.insertUser(user);
     }
   }
 
@@ -306,8 +183,7 @@ class DatabaseService {
       list.removeWhere((m) => m['id'] == id);
       await _webWrite('web_users', list);
     } else {
-      final db = await _db;
-      await db.delete('users', where: 'id = ?', whereArgs: [id]);
+      await native_db.deleteUser(id);
     }
   }
 
@@ -316,22 +192,23 @@ class DatabaseService {
       final list = await _webRead('web_users');
       return list.map(UserPersona.fromMap).toList();
     } else {
-      final db = await _db;
-      final maps = await db.query('users');
-      return maps.map(UserPersona.fromMap).toList();
+      return native_db.getUsers();
     }
   }
 
-  // ── Clear History ─────────────────────────────────────────────────────────
+  // ── Clear History ──────────────────────────────────────────────────────────
 
-  Future<void> clearAllHistory() async {
+  Future<void> clearAllHistory(String groupId) async {
     if (kIsWeb) {
-      await _webWrite('web_messages', []);
-      await _webWrite('web_sessions', []);
+      final msgs = await _webRead('web_messages');
+      msgs.removeWhere((m) => m['groupId'] == groupId);
+      await _webWrite('web_messages', msgs);
+
+      final sess = await _webRead('web_sessions');
+      sess.removeWhere((s) => s['groupId'] == groupId);
+      await _webWrite('web_sessions', sess);
     } else {
-      final db = await _db;
-      await db.delete('messages');
-      await db.delete('sessions');
+      await native_db.clearAllHistory(groupId);
     }
   }
 }

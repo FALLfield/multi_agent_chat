@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+
 import '../models/chat_message.dart';
 
 class ChatMessageWidget extends StatefulWidget {
@@ -145,9 +145,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                             ],
                           ),
                         ),
-                      // Header row: agent name + badges + action buttons
+                      // Header row: agent name + badges
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Flexible(
                             child: Row(
@@ -190,66 +189,49 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                               ],
                             ),
                           ),
-                          // Toolbar — visible on hover or always on touch
-                          Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // Copy button
+                          // Toolbar — visible on hover, placed after name in the same row
+                          AnimatedOpacity(
+                            opacity: _isHovered ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 200),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(width: 8),
+                                // Copy button
+                                _ToolbarButton(
+                                  icon: _copied ? Icons.check : Icons.copy,
+                                  label: _copied ? 'Copied' : 'Copy',
+                                  color: _copied ? Colors.green : null,
+                                  onTap: () async {
+                                    await Clipboard.setData(
+                                      ClipboardData(text: widget.message.text),
+                                    );
+                                    setState(() => _copied = true);
+                                    await Future.delayed(
+                                      const Duration(seconds: 2),
+                                    );
+                                    if (mounted) {
+                                      setState(() => _copied = false);
+                                    }
+                                  },
+                                ),
+                                // Debate button
+                                if (widget.onReply != null)
                                   _ToolbarButton(
-                                    icon: _copied ? Icons.check : Icons.copy,
-                                    label: _copied ? 'Copied' : 'Copy',
-                                    color: _copied ? Colors.green : null,
-                                    onTap: () async {
-                                      await Clipboard.setData(
-                                        ClipboardData(
-                                          text: widget.message.text,
-                                        ),
-                                      );
-                                      setState(() => _copied = true);
-                                      await Future.delayed(
-                                        const Duration(seconds: 2),
-                                      );
-                                      if (mounted) {
-                                        setState(() => _copied = false);
-                                      }
-                                    },
+                                    icon: Icons.gavel,
+                                    label: 'Debate',
+                                    onTap: () =>
+                                        widget.onReply!(widget.message.text),
                                   ),
-                                  // Debate button
-                                  if (widget.onReply != null)
-                                    _ToolbarButton(
-                                      icon: Icons.gavel,
-                                      label: 'Debate',
-                                      onTap: () =>
-                                          widget.onReply!(widget.message.text),
-                                    ),
-                                ],
-                              )
-                              .animate(target: _isHovered ? 1 : 0)
-                              .fade(duration: 250.ms)
-                              .slideX(
-                                begin: 0.1,
-                                end: 0,
-                                duration: 250.ms,
-                                curve: Curves.easeOutBack,
-                              ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
                       // Message content
                       if (widget.message.text == "Thinking...")
-                        Text(
-                              "Thinking...",
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.onSurface,
-                                fontStyle: FontStyle.italic,
-                                fontSize: 16,
-                              ),
-                            )
-                            .animate(
-                              onPlay: (controller) =>
-                                  controller.repeat(reverse: true),
-                            )
-                            .fade(duration: 800.ms, begin: 0.4, end: 1.0)
+                        const _ThinkingText()
                       else
                         MarkdownBody(
                           data: widget.message.text,
@@ -369,6 +351,52 @@ class _ToolbarButton extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           child: Icon(icon, size: 16, color: c),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pulsing "Thinking..." indicator using a plain AnimationController.
+/// Avoids flutter_animate to prevent layout assertion errors on Web.
+class _ThinkingText extends StatefulWidget {
+  const _ThinkingText();
+
+  @override
+  State<_ThinkingText> createState() => _ThinkingTextState();
+}
+
+class _ThinkingTextState extends State<_ThinkingText>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+    _opacity = Tween<double>(begin: 0.4, end: 1.0).animate(_ctrl);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: Text(
+        'Thinking...',
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface,
+          fontStyle: FontStyle.italic,
+          fontSize: 16,
         ),
       ),
     );

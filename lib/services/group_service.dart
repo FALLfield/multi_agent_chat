@@ -165,6 +165,42 @@ class GroupService extends ChangeNotifier {
     }
   }
 
+  /// Leave or Delete Group
+  Future<bool> leaveOrDeleteGroup(Group group) async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final isLeader = group.isLeader(user.uid);
+      final docRef = _db.collection('groups').doc(group.id);
+
+      if (isLeader) {
+        // Delete the entire group document
+        await docRef.delete();
+      } else {
+        // Remove self from memberUids
+        await docRef.update({
+          'memberUids': FieldValue.arrayRemove([user.uid]),
+        });
+      }
+
+      _myGroups.removeWhere((g) => g.id == group.id);
+      if (_activeGroup?.id == group.id) {
+        _activeGroup = _myGroups.isNotEmpty ? _myGroups.first : null;
+      }
+      return true;
+    } catch (e) {
+      _errorMessage = '退出/解散群组失败：$e';
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   /// Update a group's API keys (leader only)
   Future<bool> updateGroupApiKeys({
     required String groupId,

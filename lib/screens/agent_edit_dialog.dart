@@ -55,6 +55,8 @@ class _AgentEditDialogState extends State<AgentEditDialog> {
       return;
     }
 
+    final chatService = Provider.of<ChatService>(context, listen: false);
+
     final agent = AgentPersona(
       id:
           widget.existingAgent?.id ??
@@ -63,9 +65,9 @@ class _AgentEditDialogState extends State<AgentEditDialog> {
       systemInstruction: _instructionController.text.trim(),
       provider: _selectedProvider,
       modelName: _modelNameController.text.trim(),
+      groupId: chatService.activeGroupId ?? '',
     );
 
-    final chatService = Provider.of<ChatService>(context, listen: false);
     if (widget.existingAgent == null) {
       chatService.addAgent(agent);
     } else {

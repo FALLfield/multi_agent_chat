@@ -1,12 +1,13 @@
-import 'package:flutter/material.dart';
-import '../models/chat_message.dart';
-import '../models/agent_persona.dart';
-import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../models/agent_persona.dart';
+import '../models/chat_message.dart';
 import '../models/chat_session.dart';
 import '../models/user_persona.dart';
+import '../models/group.dart';
 import 'database_service.dart';
 
 enum DiscussionMode { sequential, concurrent }
@@ -26,6 +27,10 @@ class ChatService extends ChangeNotifier {
 
   String _doubaoEndpoint = '';
   String get doubaoEndpoint => _doubaoEndpoint;
+
+  // Store Group API Keys
+  Map<String, String>? _groupApiKeys;
+  String? _groupDoubaoEndpoint;
 
   String? _activeSessionId;
   String? get activeSessionId => _activeSessionId;
@@ -107,34 +112,75 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
+  // The roster of agents participating in the round table
+  List<AgentPersona> _activeAgents = [];
+  List<AgentPersona> get activeAgents => _activeAgents;
+
+  String? _activeGroupId;
+  String? get activeGroupId => _activeGroupId;
+
+  Future<void> enterGroupMode(Group group) async {
+    _activeGroupId = group.id;
+    setGroupApiKeys(group.apiKeys, group.doubaoEndpoint);
+    await _loadAgents();
+    await _loadSessions();
+  }
+
+  void exitGroupMode() {
+    _activeGroupId = null;
+    clearGroupApiKeys();
+    _activeAgents = [];
+    _sessions = [];
+    _messages = [];
+    notifyListeners();
+  }
+
   Future<void> _loadAgents() async {
-    _activeAgents = await _dbService.getAgents();
+    if (_activeGroupId == null) return;
+    _activeAgents = await _dbService.getAgents(_activeGroupId!);
     if (_activeAgents.isEmpty) {
-      // Provide defaults if DB is empty for the first time
+      // Pick the first provider that actually has an API key configured
+      final providerPriority = ['kimi', 'deepseek', 'doubao'];
+      final modelMap = {
+        'kimi': 'moonshot-v1-8k',
+        'deepseek': 'deepseek-chat',
+        'doubao': 'doubao-pro-32k',
+      };
+      String bestProvider = providerPriority.first;
+      String bestModel = modelMap[bestProvider]!;
+      for (final p in providerPriority) {
+        if (getApiKey(p).isNotEmpty) {
+          bestProvider = p;
+          bestModel = modelMap[p]!;
+          break;
+        }
+      }
+
       final defaults = [
-        const AgentPersona(
-          id: 'agent_lawyer',
-          name: '金牌大律师 (Kimi)',
-          systemInstruction:
-              '你是一位拥有20年经验的金牌大律师。你说话严谨、注重法律依据、逻辑缜密，喜欢援引真实的法律条款。请用法律人的视角来剖析当前问题。',
-          provider: 'kimi',
-          modelName: 'moonshot-v1-8k',
+        AgentPersona(
+          id: 'agent_philosopher_${_activeGroupId!}',
+          name: '哲学家 (Philosopher)',
+          systemInstruction: '你是一位深邃的哲学家。请用苏格拉底式的引导方式，从伦理、道德、存在主义角度剖析当前问题。',
+          provider: bestProvider,
+          modelName: bestModel,
+          groupId: _activeGroupId!,
         ),
-        const AgentPersona(
-          id: 'agent_artist',
-          name: '先锋艺术家 (DeepSeek)',
-          systemInstruction:
-              '你是一位感性、充满想象力的先锋艺术家。你经常打破常规，用富有诗意、跳跃性甚至有些神经质的思维来看待世界。',
-          provider: 'deepseek',
-          modelName: 'deepseek-chat',
+        AgentPersona(
+          id: 'agent_doctor_${_activeGroupId!}',
+          name: '医生 (Doctor)',
+          systemInstruction: '你是一位专业的临床主治医生。回复请带有职业素养，用循证医学的结构化思维去诊断问题的根本原因。',
+          provider: bestProvider,
+          modelName: bestModel,
+          groupId: _activeGroupId!,
         ),
-        const AgentPersona(
-          id: 'agent_programmer',
-          name: '全栈架构师 (Doubao)',
+        AgentPersona(
+          id: 'agent_programmer_${_activeGroupId!}',
+          name: '程序员 (Programmer)',
           systemInstruction:
-              '你是一位顶级全栈工程师。你信奉代码就是真理，说话非常直白，经常用计算机科学、算法结构、性能瓶颈等编程概念来隐喻现实问题。',
-          provider: 'doubao',
-          modelName: 'doubao-pro-32k',
+              '你是一位高级全栈工程师。你信奉代码就是真理，喜欢用计算机科学、算法结构、系统架构等编程概念来解构现实世界。',
+          provider: bestProvider,
+          modelName: bestModel,
+          groupId: _activeGroupId!,
         ),
       ];
       for (var agent in defaults) {
@@ -146,7 +192,8 @@ class ChatService extends ChangeNotifier {
   }
 
   Future<void> _loadSessions() async {
-    _sessions = await _dbService.getSessions();
+    if (_activeGroupId == null) return;
+    _sessions = await _dbService.getSessions(_activeGroupId!);
     if (_sessions.isNotEmpty) {
       await loadSession(_sessions.first.id);
     } else {
@@ -168,6 +215,7 @@ class ChatService extends ChangeNotifier {
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       title: 'New Discussion',
       createdAt: DateTime.now(),
+      groupId: _activeGroupId ?? '',
     );
     await _dbService.insertSession(newSession);
     _sessions.insert(0, newSession);
@@ -176,8 +224,23 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> renameSession(String sessionId, String newTitle) async {
+    final idx = _sessions.indexWhere((s) => s.id == sessionId);
+    if (idx == -1) return;
+    final updated = ChatSession(
+      id: sessionId,
+      title: newTitle.trim().isEmpty ? 'New Discussion' : newTitle.trim(),
+      createdAt: _sessions[idx].createdAt,
+      groupId: _sessions[idx].groupId,
+    );
+    _sessions[idx] = updated;
+    await _dbService.updateSession(updated);
+    notifyListeners();
+  }
+
   Future<void> clearAllHistory() async {
-    await _dbService.clearAllHistory();
+    if (_activeGroupId == null) return;
+    await _dbService.clearAllHistory(_activeGroupId!);
     _sessions = [];
     createNewSession();
   }
@@ -237,11 +300,29 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
-  String getApiKey(String provider) => _apiKeys[provider] ?? '';
+  void setGroupApiKeys(Map<String, String> keys, String doubaoEndpoint) {
+    _groupApiKeys = keys;
+    _groupDoubaoEndpoint = doubaoEndpoint;
+  }
 
-  // The roster of agents participating in the round table
-  List<AgentPersona> _activeAgents = [];
-  List<AgentPersona> get activeAgents => _activeAgents;
+  void clearGroupApiKeys() {
+    _groupApiKeys = null;
+    _groupDoubaoEndpoint = null;
+  }
+
+  String getApiKey(String provider) {
+    if (_groupApiKeys != null && _groupApiKeys![provider]?.isNotEmpty == true) {
+      return _groupApiKeys![provider]!;
+    }
+    return _apiKeys[provider] ?? '';
+  }
+
+  String getEffectiveDoubaoEndpoint() {
+    if (_groupDoubaoEndpoint != null && _groupDoubaoEndpoint!.isNotEmpty) {
+      return _groupDoubaoEndpoint!;
+    }
+    return _doubaoEndpoint;
+  }
 
   Set<String> _participatingAgentIds = {};
   Set<String> get participatingAgentIds => _participatingAgentIds;
@@ -314,6 +395,7 @@ class ChatService extends ChangeNotifier {
       isUser: true,
       sessionId: _activeSessionId,
       senderName: _currentUser?.name,
+      groupId: _activeGroupId ?? '',
     );
     _messages.add(userMessage);
     await _dbService.insertMessage(userMessage);
@@ -331,6 +413,7 @@ class ChatService extends ChangeNotifier {
           id: _activeSessionId!,
           title: title,
           createdAt: _sessions[sessionIndex].createdAt,
+          groupId: _activeGroupId ?? '',
         );
         _sessions[sessionIndex] = updatedSession;
         await _dbService.insertSession(updatedSession);
@@ -378,6 +461,7 @@ class ChatService extends ChangeNotifier {
         createdAt: DateTime.now(),
         isUser: false,
         sessionId: _activeSessionId,
+        groupId: _activeGroupId ?? '',
       );
       _messages.add(errorMessage);
       await _dbService.insertMessage(errorMessage);
@@ -495,14 +579,15 @@ class ChatService extends ChangeNotifier {
       agent: agent,
       sessionId: _activeSessionId,
       isConclusion: isConclusion,
+      groupId: _activeGroupId ?? '',
     );
     _messages.add(newMessage);
     await _dbService.insertMessage(newMessage);
     notifyListeners();
 
     String currentResponse = "";
-    final apiKey = _apiKeys[agent.provider];
-    if (apiKey == null || apiKey.isEmpty) {
+    final apiKey = getApiKey(agent.provider);
+    if (apiKey.isEmpty) {
       _updateMessageText(
         messageId,
         newMessage,
@@ -565,21 +650,20 @@ class ChatService extends ChangeNotifier {
     final lines = currentResponse.split('\n');
     if (lines.isNotEmpty) {
       final firstLine = lines[0].trim();
-      if (firstLine.startsWith('@') &&
-          firstLine.length > 1 &&
-          !firstLine.contains(' ')) {
-        // Single-word first line starting with @ → treat as reply attribution
-        parsedReplyTo = firstLine.substring(1); // strip the @
-        displayText = lines.sublist(1).join('\n').trimLeft();
-      } else {
-        final inlineMatch = RegExp(r'^@(\S+)\s').firstMatch(firstLine);
-        if (inlineMatch != null) {
-          parsedReplyTo = inlineMatch.group(1);
-          final rest = lines.length > 1
-              ? '\n${lines.sublist(1).join('\n')}'
-              : '';
-          displayText = lines[0].substring(inlineMatch.end) + rest;
-        }
+      // Match @Name where Name is letters/digits/CJK — stops at punctuation/space
+      final replyPattern = RegExp(r'^@([^\s，,、。！？!?；:：]+)');
+      final inlineMatch = replyPattern.firstMatch(firstLine);
+      if (inlineMatch != null) {
+        parsedReplyTo = inlineMatch.group(1);
+        // Strip the @Name (and any immediately following punctuation/space) from text
+        final afterName = firstLine
+            .substring(inlineMatch.end)
+            .replaceFirst(RegExp(r'^[，,、\s]+'), '');
+        final rest = lines.length > 1 ? '\n${lines.sublist(1).join('\n')}' : '';
+        // If the first line had more content beyond @Name, prepend it
+        displayText = afterName.isNotEmpty
+            ? afterName + rest
+            : lines.sublist(1).join('\n').trimLeft();
       }
     }
 
@@ -618,6 +702,7 @@ class ChatService extends ChangeNotifier {
         agent: agent,
         sessionId: _activeSessionId,
         isConclusion: isConclusion,
+        groupId: _activeGroupId ?? '',
         // Preserve existing replyTo if no new one was parsed yet
         replyTo: replyTo ?? _messages[idx].replyTo,
       );
@@ -713,12 +798,13 @@ class ChatService extends ChangeNotifier {
                 systemInstruction: '',
                 provider: bestProvider!,
                 modelName: bestProvider == 'doubao'
-                    ? (_doubaoEndpoint.isNotEmpty
-                          ? _doubaoEndpoint
+                    ? (getEffectiveDoubaoEndpoint().isNotEmpty
+                          ? getEffectiveDoubaoEndpoint()
                           : 'doubao-pro-32k')
                     : (bestProvider == 'kimi'
                           ? 'moonshot-v1-8k'
                           : 'deepseek-chat'),
+                groupId: _activeGroupId ?? '',
               ),
             )
             .modelName;
@@ -740,6 +826,7 @@ class ChatService extends ChangeNotifier {
         systemInstruction: '你是一个专业的会议摘要生成器，输出简洁、准确，不超过200字。',
         provider: bestProvider,
         modelName: bestModel!,
+        groupId: _activeGroupId ?? '',
       );
 
       // Collect the full summary text
@@ -766,6 +853,7 @@ class ChatService extends ChangeNotifier {
           title: _sessions[sessionIndex].title,
           createdAt: _sessions[sessionIndex].createdAt,
           summary: newSummary,
+          groupId: _activeGroupId ?? '',
         );
         _sessions[sessionIndex] = updatedSession;
         await _dbService.updateSession(updatedSession);
@@ -802,8 +890,9 @@ class ChatService extends ChangeNotifier {
         throw Exception("Unknown provider");
     }
 
-    final modelToUse = agent.provider == 'doubao' && _doubaoEndpoint.isNotEmpty
-        ? _doubaoEndpoint
+    final modelToUse =
+        agent.provider == 'doubao' && getEffectiveDoubaoEndpoint().isNotEmpty
+        ? getEffectiveDoubaoEndpoint()
         : agent.modelName;
 
     final List<Map<String, String>> messages = [

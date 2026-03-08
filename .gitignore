@@ -1,0 +1,44 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+*.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Pub
+.pub-cache/
+.pub/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# macOS
+.DS_Store
+*.xcworkspace/
+Pods/
+
+# Android
+local.properties
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+
+# Firebase sensitive files (do NOT commit to public repos)
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+
+# Personal notes / secrets
+API-key.md
+
+# Web build output
+web/flutter_service_worker.js

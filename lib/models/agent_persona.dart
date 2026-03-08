@@ -4,6 +4,7 @@ class AgentPersona {
   final String systemInstruction;
   final String provider; // e.g., 'kimi', 'qwen', 'doubao', 'deepseek'
   final String modelName;
+  final String groupId; // The group this agent belongs to
 
   const AgentPersona({
     required this.id,
@@ -11,6 +12,7 @@ class AgentPersona {
     required this.systemInstruction,
     required this.provider,
     required this.modelName,
+    required this.groupId,
   });
 
   Map<String, dynamic> toMap() {
@@ -20,6 +22,7 @@ class AgentPersona {
       'systemInstruction': systemInstruction,
       'provider': provider,
       'modelName': modelName,
+      'groupId': groupId,
     };
   }
 
@@ -30,6 +33,7 @@ class AgentPersona {
       systemInstruction: map['systemInstruction'] as String,
       provider: map['provider'] as String,
       modelName: map['modelName'] as String,
+      groupId: map['groupId'] as String? ?? '',
     );
   }
 }
