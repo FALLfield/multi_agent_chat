@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/group_service.dart';
+import '../services/locale_service.dart';
 import 'chat_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -37,11 +38,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthService>(context);
+    final locale = Provider.of<LocaleService>(context);
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Groups'),
+        title: Text(locale.groups),
         actions: [
           Center(
             child: Padding(
@@ -55,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () => auth.signOut(),
-            tooltip: 'Logout',
+            tooltip: locale.logout,
           ),
         ],
       ),
@@ -77,7 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () => groupService.loadMyGroups(),
-                    child: const Text('Retry'),
+                    child: Text(locale.retry),
                   ),
                 ],
               ),
@@ -96,14 +98,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'No Groups Yet',
+                    locale.noGroupsYet,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       color: cs.onSurface.withValues(alpha: 0.5),
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Create or join a group to start collaborating.',
+                    locale.noGroupsHint,
                     style: TextStyle(
                       color: cs.onSurface.withValues(alpha: 0.5),
                     ),
@@ -115,13 +117,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       ElevatedButton.icon(
                         onPressed: _joinGroup,
                         icon: const Icon(Icons.login),
-                        label: const Text('Join Group'),
+                        label: Text(locale.joinGroup),
                       ),
                       const SizedBox(width: 16),
                       FilledButton.icon(
                         onPressed: _createGroup,
                         icon: const Icon(Icons.add),
-                        label: const Text('Create Group'),
+                        label: Text(locale.createGroup),
                       ),
                     ],
                   ),
@@ -134,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onRefresh: groupService.loadMyGroups,
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: groupService.myGroups.length + 1, // +1 for the header
+              itemCount: groupService.myGroups.length + 1,
               itemBuilder: (context, index) {
                 if (index == 0) {
                   return Padding(
@@ -145,7 +147,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: ElevatedButton.icon(
                             onPressed: _joinGroup,
                             icon: const Icon(Icons.login),
-                            label: const Text('Join Group'),
+                            label: Text(locale.joinGroup),
                           ),
                         ),
                       ],
@@ -189,7 +191,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             color: cs.onSurfaceVariant,
                           ),
                           const SizedBox(width: 4),
-                          Text('${group.memberUids.length} members'),
+                          Text('${group.memberUids.length} ${locale.members}'),
                           if (isLeader) ...[
                             const SizedBox(width: 12),
                             Container(
@@ -202,7 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                'Leader',
+                                locale.leader,
                                 style: TextStyle(
                                   fontSize: 10,
                                   color: cs.onTertiaryContainer,
@@ -237,7 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ? FloatingActionButton.extended(
                   onPressed: _createGroup,
                   icon: const Icon(Icons.add),
-                  label: const Text('New Group'),
+                  label: Text(locale.newGroup),
                 )
               : const SizedBox.shrink();
         },
@@ -275,8 +277,9 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
 
   Future<void> _submit() async {
     final name = _nameController.text.trim();
+    final locale = Provider.of<LocaleService>(context, listen: false);
     if (name.isEmpty) {
-      setState(() => _error = 'Group name is required');
+      setState(() => _error = locale.groupNameRequired);
       return;
     }
 
@@ -298,11 +301,11 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
 
     if (mounted) {
       if (group != null) {
-        Navigator.pop(context); // Close dialog
+        Navigator.pop(context);
       } else {
         setState(() {
           _isLoading = false;
-          _error = service.errorMessage ?? 'Failed to create group';
+          _error = service.errorMessage ?? locale.failedToCreateGroup;
         });
       }
     }
@@ -310,8 +313,9 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final locale = Provider.of<LocaleService>(context);
     return AlertDialog(
-      title: const Text('Create New Group'),
+      title: Text(locale.createNewGroup),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -324,21 +328,21 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
               ),
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Group Name',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: locale.groupName,
+                border: const OutlineInputBorder(),
               ),
               autofocus: true,
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Shared API Keys (Optional)',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            Text(
+              locale.sharedApiKeys,
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'As leader, you can provide API keys for the group to share.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+            Text(
+              locale.sharedApiKeysHint,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -367,10 +371,10 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
             const SizedBox(height: 12),
             TextField(
               controller: _doubaoEndpointController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Doubao Endpoint ID',
-                border: OutlineInputBorder(),
-                hintText: 'e.g., ep-2024...',
+                border: const OutlineInputBorder(),
+                hintText: locale.doubaoEndpointHint,
               ),
             ),
           ],
@@ -379,7 +383,7 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(locale.cancel),
         ),
         ElevatedButton(
           onPressed: _isLoading ? null : _submit,
@@ -389,7 +393,7 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Create'),
+              : Text(locale.create),
         ),
       ],
     );
@@ -416,8 +420,9 @@ class _JoinGroupDialogState extends State<_JoinGroupDialog> {
 
   Future<void> _submit() async {
     final code = _codeController.text.trim();
+    final locale = Provider.of<LocaleService>(context, listen: false);
     if (code.isEmpty) {
-      setState(() => _error = 'Invite code is required');
+      setState(() => _error = locale.inviteCodeRequired);
       return;
     }
 
@@ -431,7 +436,7 @@ class _JoinGroupDialogState extends State<_JoinGroupDialog> {
 
     if (mounted) {
       if (group != null) {
-        Navigator.pop(context); // Close dialog
+        Navigator.pop(context);
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => ChatScreen(group: group)),
@@ -439,7 +444,7 @@ class _JoinGroupDialogState extends State<_JoinGroupDialog> {
       } else {
         setState(() {
           _isLoading = false;
-          _error = service.errorMessage ?? 'Failed to join group';
+          _error = service.errorMessage ?? locale.failedToJoinGroup;
         });
       }
     }
@@ -447,8 +452,9 @@ class _JoinGroupDialogState extends State<_JoinGroupDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final locale = Provider.of<LocaleService>(context);
     return AlertDialog(
-      title: const Text('Join Group'),
+      title: Text(locale.joinGroup),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -459,10 +465,10 @@ class _JoinGroupDialogState extends State<_JoinGroupDialog> {
             ),
           TextField(
             controller: _codeController,
-            decoration: const InputDecoration(
-              labelText: 'Invite Code',
-              hintText: 'Enter 6-character code',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: locale.inviteCode,
+              hintText: locale.inviteCodeHint,
+              border: const OutlineInputBorder(),
             ),
             textCapitalization: TextCapitalization.characters,
             autofocus: true,
@@ -473,7 +479,7 @@ class _JoinGroupDialogState extends State<_JoinGroupDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(locale.cancel),
         ),
         ElevatedButton(
           onPressed: _isLoading ? null : _submit,
@@ -483,7 +489,7 @@ class _JoinGroupDialogState extends State<_JoinGroupDialog> {
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('Join'),
+              : Text(locale.join),
         ),
       ],
     );

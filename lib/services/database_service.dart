@@ -1,117 +1,80 @@
 // ignore_for_file: depend_on_referenced_packages
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/chat_session.dart';
 import '../models/chat_message.dart';
 import '../models/agent_persona.dart';
 import '../models/user_persona.dart';
 
-// Conditional import: on web builds dart2js only sees the stub (no sqflite).
-// On native (dart:io) the real sqflite backend is loaded.
-import 'db_backend_stub.dart'
-    if (dart.library.io) 'db_backend_native.dart'
-    as native_db;
-
-/// Platform-adaptive storage service.
-/// • Web    → SharedPreferences (browser localStorage)
-/// • Native → sqflite via [db_backend_native.dart]
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
   factory DatabaseService() => _instance;
   DatabaseService._internal();
 
-  // ── Web helpers ────────────────────────────────────────────────────────────
-
-  Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
-
-  Future<List<Map<String, dynamic>>> _webRead(String key) async {
-    final prefs = await _prefs;
-    final raw = prefs.getString(key);
-    if (raw == null) return [];
-    return List<Map<String, dynamic>>.from(
-      (jsonDecode(raw) as List).map((e) => Map<String, dynamic>.from(e)),
-    );
-  }
-
-  Future<void> _webWrite(String key, List<Map<String, dynamic>> data) async {
-    final prefs = await _prefs;
-    await prefs.setString(key, jsonEncode(data));
-  }
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   // ── Session Methods ────────────────────────────────────────────────────────
 
   Future<void> insertSession(ChatSession session) async {
-    if (kIsWeb) {
-      final list = await _webRead('web_sessions');
-      list.removeWhere((m) => m['id'] == session.id);
-      list.add(session.toMap());
-      await _webWrite('web_sessions', list);
-    } else {
-      await native_db.insertSession(session);
-    }
+    await _db.collection('sessions').doc(session.id).set(session.toMap());
   }
 
   Future<void> updateSession(ChatSession session) async {
-    if (kIsWeb) {
-      await insertSession(session);
-    } else {
-      await native_db.updateSession(session);
-    }
+    await _db
+        .collection('sessions')
+        .doc(session.id)
+        .set(session.toMap(), SetOptions(merge: true));
   }
 
   Future<List<ChatSession>> getSessions(String groupId) async {
-    if (kIsWeb) {
-      final list = await _webRead('web_sessions');
-      final filtered = list.where((m) => m['groupId'] == groupId).toList();
-      filtered.sort(
-        (a, b) =>
-            (b['createdAt'] as String).compareTo(a['createdAt'] as String),
-      );
-      return filtered.map(ChatSession.fromMap).toList();
-    } else {
-      return native_db.getSessions(groupId);
-    }
+    final snap = await _db
+        .collection('sessions')
+        .where('groupId', isEqualTo: groupId)
+        .get();
+    final list = snap.docs
+        .map((doc) => ChatSession.fromMap(doc.data()))
+        .toList();
+    list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return list;
+  }
+
+  Stream<List<ChatSession>> streamSessions(String groupId) {
+    return _db
+        .collection('sessions')
+        .where('groupId', isEqualTo: groupId)
+        .snapshots()
+        .map((snap) {
+          final list = snap.docs
+              .map((doc) => ChatSession.fromMap(doc.data()))
+              .toList();
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return list;
+        });
   }
 
   // ── Message Methods ────────────────────────────────────────────────────────
 
   Future<void> insertMessage(ChatMessage message) async {
-    if (kIsWeb) {
-      final list = await _webRead('web_messages');
-      list.removeWhere((m) => m['id'] == message.id);
-      list.add(message.toMap());
-      await _webWrite('web_messages', list);
-    } else {
-      await native_db.insertMessage(message);
-    }
+    await _db.collection('messages').doc(message.id).set(message.toMap());
   }
 
   Future<void> updateMessage(ChatMessage message) async {
-    if (kIsWeb) {
-      await insertMessage(message);
-    } else {
-      await native_db.updateMessage(message);
-    }
+    await _db
+        .collection('messages')
+        .doc(message.id)
+        .set(message.toMap(), SetOptions(merge: true));
   }
 
   Future<List<ChatMessage>> getMessagesForSession(
     String sessionId,
     List<AgentPersona> activeAgents,
   ) async {
-    final List<Map<String, dynamic>> maps;
-    if (kIsWeb) {
-      final all = await _webRead('web_messages');
-      maps = all.where((m) => m['sessionId'] == sessionId).toList()
-        ..sort(
-          (a, b) =>
-              (a['createdAt'] as String).compareTo(b['createdAt'] as String),
-        );
-    } else {
-      maps = await native_db.getMessagesForSession(sessionId);
-    }
+    final snap = await _db
+        .collection('messages')
+        .where('sessionId', isEqualTo: sessionId)
+        .get();
 
-    return maps.map((map) {
+    final list = snap.docs.map((doc) {
+      final map = doc.data();
       final agentId = map['agentId'] as String?;
       AgentPersona? agent;
       if (agentId != null) {
@@ -121,94 +84,113 @@ class DatabaseService {
       }
       return ChatMessage.fromMap(map, agent: agent);
     }).toList();
+    list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return list;
+  }
+
+  Stream<List<ChatMessage>> streamMessages(
+    String sessionId,
+    List<AgentPersona> activeAgents,
+  ) {
+    return _db
+        .collection('messages')
+        .where('sessionId', isEqualTo: sessionId)
+        .snapshots()
+        .map((snap) {
+          final list = snap.docs.map((doc) {
+            final map = doc.data();
+            final agentId = map['agentId'] as String?;
+            AgentPersona? agent;
+            if (agentId != null) {
+              try {
+                agent = activeAgents.firstWhere((a) => a.id == agentId);
+              } catch (_) {}
+            }
+            return ChatMessage.fromMap(map, agent: agent);
+          }).toList();
+          list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          return list;
+        });
   }
 
   // ── Agent Methods ──────────────────────────────────────────────────────────
 
   Future<void> insertAgent(AgentPersona agent) async {
-    if (kIsWeb) {
-      final list = await _webRead('web_agents');
-      list.removeWhere((m) => m['id'] == agent.id);
-      list.add(agent.toMap());
-      await _webWrite('web_agents', list);
-    } else {
-      await native_db.insertAgent(agent);
-    }
+    await _db.collection('agents').doc(agent.id).set(agent.toMap());
   }
 
   Future<void> updateAgent(AgentPersona agent) async {
-    if (kIsWeb) {
-      await insertAgent(agent);
-    } else {
-      await native_db.updateAgent(agent);
-    }
+    await _db
+        .collection('agents')
+        .doc(agent.id)
+        .set(agent.toMap(), SetOptions(merge: true));
   }
 
   Future<void> deleteAgent(String id) async {
-    if (kIsWeb) {
-      final list = await _webRead('web_agents');
-      list.removeWhere((m) => m['id'] == id);
-      await _webWrite('web_agents', list);
-    } else {
-      await native_db.deleteAgent(id);
-    }
+    await _db.collection('agents').doc(id).delete();
   }
 
   Future<List<AgentPersona>> getAgents(String groupId) async {
-    if (kIsWeb) {
-      final list = await _webRead('web_agents');
-      final filtered = list.where((m) => m['groupId'] == groupId).toList();
-      return filtered.map(AgentPersona.fromMap).toList();
-    } else {
-      return native_db.getAgents(groupId);
-    }
+    final snap = await _db
+        .collection('agents')
+        .where('groupId', isEqualTo: groupId)
+        .get();
+    return snap.docs.map((doc) => AgentPersona.fromMap(doc.data())).toList();
+  }
+
+  Stream<List<AgentPersona>> streamAgents(String groupId) {
+    return _db
+        .collection('agents')
+        .where('groupId', isEqualTo: groupId)
+        .snapshots()
+        .map(
+          (snap) =>
+              snap.docs.map((doc) => AgentPersona.fromMap(doc.data())).toList(),
+        );
   }
 
   // ── User Methods ───────────────────────────────────────────────────────────
 
   Future<void> insertUser(UserPersona user) async {
-    if (kIsWeb) {
-      final list = await _webRead('web_users');
-      list.removeWhere((m) => m['id'] == user.id);
-      list.add(user.toMap());
-      await _webWrite('web_users', list);
-    } else {
-      await native_db.insertUser(user);
-    }
+    await _db.collection('users').doc(user.id).set(user.toMap());
   }
 
   Future<void> deleteUser(String id) async {
-    if (kIsWeb) {
-      final list = await _webRead('web_users');
-      list.removeWhere((m) => m['id'] == id);
-      await _webWrite('web_users', list);
-    } else {
-      await native_db.deleteUser(id);
-    }
+    await _db.collection('users').doc(id).delete();
   }
 
   Future<List<UserPersona>> getUsers() async {
-    if (kIsWeb) {
-      final list = await _webRead('web_users');
-      return list.map(UserPersona.fromMap).toList();
-    } else {
-      return native_db.getUsers();
-    }
+    final snap = await _db.collection('users').get();
+    return snap.docs.map((doc) => UserPersona.fromMap(doc.data())).toList();
   }
 
   // ── Clear History ──────────────────────────────────────────────────────────
 
-  Future<void> clearAllHistory(String groupId) async {
-    if (kIsWeb) {
-      final msgs = await _webRead('web_messages');
-      msgs.removeWhere((m) => m['groupId'] == groupId);
-      await _webWrite('web_messages', msgs);
+  Future<void> deleteSession(String sessionId) async {
+    final msgs = await _db
+        .collection('messages')
+        .where('sessionId', isEqualTo: sessionId)
+        .get();
+    for (var doc in msgs.docs) {
+      await doc.reference.delete();
+    }
+    await _db.collection('sessions').doc(sessionId).delete();
+  }
 
-      final sess = await _webRead('web_sessions');
-      sess.removeWhere((s) => s['groupId'] == groupId);
-      await _webWrite('web_sessions', sess);
-    } else {
-      await native_db.clearAllHistory(groupId);
+  Future<void> clearAllHistory(String groupId) async {
+    final msgs = await _db
+        .collection('messages')
+        .where('groupId', isEqualTo: groupId)
+        .get();
+    for (var doc in msgs.docs) {
+      await doc.reference.delete();
+    }
+    final sess = await _db
+        .collection('sessions')
+        .where('groupId', isEqualTo: groupId)
+        .get();
+    for (var doc in sess.docs) {
+      await doc.reference.delete();
     }
   }
 }

@@ -6,6 +6,7 @@ class Group {
   final Map<String, String> apiKeys; // provider -> key
   final String doubaoEndpoint;
   final List<String> memberUids;
+  final Map<String, String> memberNames;
   final DateTime createdAt;
 
   Group({
@@ -16,6 +17,7 @@ class Group {
     required this.apiKeys,
     required this.doubaoEndpoint,
     required this.memberUids,
+    required this.memberNames,
     required this.createdAt,
   });
 
@@ -30,6 +32,7 @@ class Group {
       apiKeys: Map<String, String>.from(map['apiKeys'] as Map? ?? {}),
       doubaoEndpoint: map['doubaoEndpoint'] as String? ?? '',
       memberUids: List<String>.from(map['memberUids'] as List? ?? []),
+      memberNames: Map<String, String>.from(map['memberNames'] as Map? ?? {}),
       createdAt: map['createdAt'] != null
           ? DateTime.parse(map['createdAt'] as String)
           : DateTime.now(),
@@ -44,6 +47,7 @@ class Group {
       'apiKeys': apiKeys,
       'doubaoEndpoint': doubaoEndpoint,
       'memberUids': memberUids,
+      'memberNames': memberNames,
       'createdAt': createdAt.toIso8601String(),
     };
   }

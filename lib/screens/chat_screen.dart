@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/group_service.dart';
 import '../services/auth_service.dart';
 import '../services/export_helper.dart';
 
 import '../theme/theme_service.dart';
 import '../services/chat_service.dart';
+import '../services/locale_service.dart';
 import '../widgets/chat_message_widget.dart';
 import '../models/group.dart';
 import 'group_settings_dialog.dart';
@@ -30,29 +33,17 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkFirstUser();
+      _enterGroupMode();
     });
   }
 
-  Future<void> _checkFirstUser() async {
+  Future<void> _enterGroupMode() async {
     if (_hasCheckedUser) return;
     _hasCheckedUser = true;
 
-    // Capture context-dependent values before any async gap
-    final chatService = Provider.of<ChatService>(context, listen: false);
-    final bool isFirstUser =
-        chatService.users.length == 1 && chatService.users[0].name == 'User 1';
     final group = widget.group;
-
-    if (isFirstUser && mounted) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const _WelcomeUserDialog(),
-      );
-    }
-
     if (group != null) {
+      final chatService = Provider.of<ChatService>(context, listen: false);
       await chatService.enterGroupMode(group);
     }
   }
@@ -102,10 +93,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _exportChat() async {
     final chatService = Provider.of<ChatService>(context, listen: false);
+    final locale = Provider.of<LocaleService>(context, listen: false);
     if (chatService.messages.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Nothing to export yet.')));
+      ).showSnackBar(SnackBar(content: Text(locale.nothingToExport)));
       return;
     }
     try {
@@ -120,7 +112,7 @@ class _ChatScreenState extends State<ChatScreen> {
         );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Chat exported — check Downloads')),
+            SnackBar(content: Text(locale.chatExported)),
           );
         }
       } else {
@@ -128,14 +120,14 @@ class _ChatScreenState extends State<ChatScreen> {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('Exported to: $savedPath')));
+          ).showSnackBar(SnackBar(content: Text('${locale.exportFailed}$savedPath')));
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+        ).showSnackBar(SnackBar(content: Text('${locale.exportFailed}$e')));
       }
     }
   }
@@ -147,8 +139,10 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _handleReply(String text) {
+    final locale = Provider.of<LocaleService>(context, listen: false);
     setState(() {
-      _textController.text = "针对以下观点发起深度辩论：\n\n『$text』\n\n请就此发表看法或提出反驳意见：\n";
+      _textController.text =
+          '${locale.debatePromptPrefix}$text${locale.debatePromptSuffix}';
     });
   }
 
@@ -158,11 +152,11 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.group?.name ?? 'New Discussion'),
+        title: Text(widget.group?.name ?? Provider.of<LocaleService>(context, listen: false).newDiscussion),
         centerTitle: false,
         actions: [
-          Consumer<ChatService>(
-            builder: (context, chatService, child) {
+          Consumer2<ChatService, LocaleService>(
+            builder: (context, chatService, locale, child) {
               final isSequential =
                   chatService.discussionMode == DiscussionMode.sequential;
               return IconButton(
@@ -178,39 +172,44 @@ class _ChatScreenState extends State<ChatScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        'Switched to ${isSequential ? 'Concurrent' : 'Sequential'} Mode',
+                        '${locale.switchedToMode} ${isSequential ? locale.concurrent : locale.sequential}${locale.modeText}',
                       ),
                       duration: const Duration(seconds: 2),
                     ),
                   );
                 },
-                tooltip: 'Mode: ${isSequential ? 'Sequential' : 'Concurrent'}',
+                tooltip:
+                    '${locale.modeLabel}${isSequential ? locale.sequential : locale.concurrent}',
               );
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.download),
-            onPressed: _exportChat,
-            tooltip: 'Export Chat',
+          Consumer<LocaleService>(
+            builder: (context, locale, _) => IconButton(
+              icon: const Icon(Icons.download),
+              onPressed: _exportChat,
+              tooltip: locale.exportChat,
+            ),
           ),
           IconButton(
             icon: Icon(
               themeService.isDarkMode ? Icons.light_mode : Icons.dark_mode,
             ),
             onPressed: themeService.toggleTheme,
-            tooltip: 'Toggle Theme',
+            tooltip: Provider.of<LocaleService>(context, listen: false).toggleTheme,
           ),
           if (widget.group != null)
-            IconButton(
-              icon: const Icon(Icons.settings_applications),
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (context) =>
-                      GroupSettingsDialog(group: widget.group!),
-                );
-              },
-              tooltip: 'Group Settings ⚙',
+            Consumer<LocaleService>(
+              builder: (context, locale, _) => IconButton(
+                icon: const Icon(Icons.settings_applications),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) =>
+                        GroupSettingsDialog(group: widget.group!),
+                  );
+                },
+                tooltip: locale.groupSettings,
+              ),
             ),
         ],
       ),
@@ -222,8 +221,11 @@ class _ChatScreenState extends State<ChatScreen> {
               builder: (context, chatService, child) {
                 final messages = chatService.messages;
                 if (messages.isEmpty) {
-                  // Use Firebase Auth display name for the greeting
                   final authService = Provider.of<AuthService>(
+                    context,
+                    listen: false,
+                  );
+                  final locale = Provider.of<LocaleService>(
                     context,
                     listen: false,
                   );
@@ -244,7 +246,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                         const SizedBox(height: 24),
                         Text(
-                          'Hello, $displayName.\nWhat can we discuss today?',
+                          '${locale.helloGreeting}$displayName.${locale.discussToday}',
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.headlineSmall
                               ?.copyWith(
@@ -294,6 +296,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildSessionInfoCard(ChatService chatService) {
+    final locale = Provider.of<LocaleService>(context, listen: false);
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.all(16),
@@ -306,17 +309,17 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Session Info',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          Text(
+            locale.sessionInfo,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 8),
           Text(
-            'Mode: ${chatService.discussionMode == DiscussionMode.sequential ? 'Sequential' : 'Concurrent'}',
+            '${locale.modeLabel}${chatService.discussionMode == DiscussionMode.sequential ? locale.sequential : locale.concurrent}',
           ),
           if (chatService.discussionMode == DiscussionMode.sequential)
-            Text('Rounds: ${chatService.discussionRounds}'),
-          Text('Active Agents: ${chatService.participatingAgentIds.length}'),
+            Text('${locale.rounds}${chatService.discussionRounds}'),
+          Text('${locale.activeAgents}${chatService.participatingAgentIds.length}'),
         ],
       ),
     );
@@ -339,21 +342,18 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
         ),
         child: Row(
-          children: [
-            const Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '正在讨论中...',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 8),
-                  LinearProgressIndicator(),
-                ],
+            children: [
+              const Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _DiscussingText(),
+                    SizedBox(height: 8),
+                    LinearProgressIndicator(),
+                  ],
+                ),
               ),
-            ),
             const SizedBox(width: 16),
             IconButton(
               icon: const Icon(Icons.stop_circle, color: Colors.red, size: 32),
@@ -371,6 +371,7 @@ class _ChatDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final locale = Provider.of<LocaleService>(context);
     return Drawer(
       backgroundColor: Theme.of(context).colorScheme.surface,
       child: SafeArea(
@@ -378,7 +379,7 @@ class _ChatDrawer extends StatelessWidget {
           children: [
             ListTile(
               leading: const Icon(Icons.add_comment),
-              title: const Text('New Discussion'),
+              title: Text(locale.newDiscussion),
               onTap: () {
                 final chatService = Provider.of<ChatService>(
                   context,
@@ -394,17 +395,26 @@ class _ChatDrawer extends StatelessWidget {
                 builder: (context, chatService, child) {
                   final sessions = chatService.sessions;
                   if (sessions.isEmpty) {
-                    return const Center(
+                    return Center(
                       child: Padding(
-                        padding: EdgeInsets.all(16.0),
+                        padding: const EdgeInsets.all(16.0),
                         child: Text(
-                          'No discussion history.',
+                          locale.noDiscussionHistory,
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey),
+                          style: const TextStyle(color: Colors.grey),
                         ),
                       ),
                     );
                   }
+                  final groupService = Provider.of<GroupService>(
+                    context,
+                    listen: false,
+                  );
+                  final currentUid =
+                      FirebaseAuth.instance.currentUser?.uid ?? '';
+                  final isLeader =
+                      groupService.activeGroup?.isLeader(currentUid) ?? false;
+
                   return ListView.builder(
                     itemCount: sessions.length,
                     itemBuilder: (context, index) {
@@ -424,48 +434,96 @@ class _ChatDrawer extends StatelessWidget {
                           ),
                         ),
                         selected: isActive,
-                        trailing: IconButton(
-                          icon: const Icon(Icons.edit_outlined, size: 16),
-                          tooltip: 'Rename',
-                          onPressed: () {
-                            final ctrl = TextEditingController(
-                              text: session.title,
-                            );
-                            showDialog(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('Rename Discussion'),
-                                content: TextField(
-                                  controller: ctrl,
-                                  autofocus: true,
-                                  decoration: const InputDecoration(
-                                    labelText: 'New name',
-                                    border: OutlineInputBorder(),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined, size: 16),
+                              tooltip: locale.rename,
+                              onPressed: () {
+                                final ctrl = TextEditingController(
+                                  text: session.title,
+                                );
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: Text(locale.renameDiscussion),
+                                    content: TextField(
+                                      controller: ctrl,
+                                      autofocus: true,
+                                      decoration: InputDecoration(
+                                        labelText: locale.newName,
+                                        border: const OutlineInputBorder(),
+                                      ),
+                                      onSubmitted: (val) {
+                                        chatService.renameSession(
+                                          session.id,
+                                          val,
+                                        );
+                                        Navigator.pop(ctx);
+                                      },
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(ctx),
+                                        child: Text(locale.cancel),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          chatService.renameSession(
+                                            session.id,
+                                            ctrl.text,
+                                          );
+                                          Navigator.pop(ctx);
+                                        },
+                                        child: Text(locale.save),
+                                      ),
+                                    ],
                                   ),
-                                  onSubmitted: (val) {
-                                    chatService.renameSession(session.id, val);
-                                    Navigator.pop(ctx);
-                                  },
+                                );
+                              },
+                            ),
+                            if (isLeader)
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  size: 16,
+                                  color: Colors.redAccent,
                                 ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx),
-                                    child: const Text('Cancel'),
-                                  ),
-                                  ElevatedButton(
-                                    onPressed: () {
-                                      chatService.renameSession(
-                                        session.id,
-                                        ctrl.text,
-                                      );
-                                      Navigator.pop(ctx);
-                                    },
-                                    child: const Text('Save'),
-                                  ),
-                                ],
+                                tooltip: locale.deleteConversation,
+                                onPressed: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: Text(locale.deleteConversation),
+                                      content: Text(
+                                        '${locale.deleteConversationConfirm}${session.title}${locale.deleteConversationConfirmSuffix}',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(ctx),
+                                          child: Text(locale.cancel),
+                                        ),
+                                        TextButton(
+                                          onPressed: () {
+                                            chatService.deleteSession(
+                                              session.id,
+                                            );
+                                            Navigator.pop(ctx);
+                                          },
+                                          child: Text(
+                                            locale.delete,
+                                            style: const TextStyle(
+                                              color: Colors.redAccent,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
                               ),
-                            );
-                          },
+                          ],
                         ),
                         onTap: () {
                           chatService.loadSession(session.id);
@@ -483,22 +541,20 @@ class _ChatDrawer extends StatelessWidget {
                 Icons.delete_outline,
                 color: Colors.redAccent,
               ),
-              title: const Text(
-                'Clear History',
-                style: TextStyle(color: Colors.redAccent),
+              title: Text(
+                locale.clearHistory,
+                style: const TextStyle(color: Colors.redAccent),
               ),
               onTap: () {
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: const Text('Clear History'),
-                    content: const Text(
-                      'Are you sure you want to delete all chat history? This cannot be undone.',
-                    ),
+                    title: Text(locale.clearHistory),
+                    content: Text(locale.clearHistoryConfirm),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
+                        child: Text(locale.cancel),
                       ),
                       TextButton(
                         onPressed: () {
@@ -507,12 +563,12 @@ class _ChatDrawer extends StatelessWidget {
                             listen: false,
                           );
                           chatService.clearAllHistory();
-                          Navigator.pop(context); // close dialog
-                          Navigator.pop(context); // close drawer
+                          Navigator.pop(context);
+                          Navigator.pop(context);
                         },
-                        child: const Text(
-                          'Clear',
-                          style: TextStyle(color: Colors.redAccent),
+                        child: Text(
+                          locale.clear,
+                          style: const TextStyle(color: Colors.redAccent),
                         ),
                       ),
                     ],
@@ -520,9 +576,65 @@ class _ChatDrawer extends StatelessWidget {
                 );
               },
             ),
+            Consumer<GroupService>(
+              builder: (context, groupService, child) {
+                final group = groupService.activeGroup;
+                if (group == null) return const SizedBox.shrink();
+
+                // Stream the raw group doc to get live memberNames updates
+                return StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection('groups')
+                      .doc(group.id)
+                      .snapshots(),
+                  builder: (context, snap) {
+                    if (!snap.hasData || !snap.data!.exists) {
+                      return const SizedBox.shrink();
+                    }
+                    final data =
+                        snap.data!.data() as Map<String, dynamic>? ?? {};
+                    final rawNames = data['memberNames'];
+                    final memberNames = rawNames is Map
+                        ? Map<String, String>.from(
+                            rawNames.map(
+                              (k, v) => MapEntry(k.toString(), v.toString()),
+                            ),
+                          )
+                        : <String, String>{};
+
+                    if (memberNames.isEmpty) return const SizedBox.shrink();
+
+                    final members = memberNames.values.toList()..sort();
+                    return ExpansionTile(
+                      initiallyExpanded: true,
+                      leading: const Icon(Icons.group, color: Colors.green),
+                      title: Text(
+                        '${locale.groupMembers} (${members.length})',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      children: members
+                          .map(
+                            (name) => ListTile(
+                              leading: const Icon(
+                                Icons.circle,
+                                size: 10,
+                                color: Colors.green,
+                              ),
+                              title: Text(
+                                name,
+                                style: const TextStyle(fontSize: 14),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    );
+                  },
+                );
+              },
+            ),
             ListTile(
               leading: const Icon(Icons.people_alt),
-              title: const Text('Agent Roster'),
+              title: Text(locale.agentRoster),
               onTap: () {
                 Navigator.pop(context); // close drawer
                 Navigator.push(
@@ -536,12 +648,12 @@ class _ChatDrawer extends StatelessWidget {
             const Divider(),
             ListTile(
               leading: const Icon(Icons.exit_to_app, color: Colors.orange),
-              title: const Text(
-                'Leave / Delete Group',
-                style: TextStyle(color: Colors.orange),
+              title: Text(
+                locale.leaveDeleteGroup,
+                style: const TextStyle(color: Colors.orange),
               ),
               onTap: () {
-                Navigator.pop(context); // Close Drawer
+                Navigator.pop(context);
                 final chatService = Provider.of<ChatService>(
                   context,
                   listen: false,
@@ -557,16 +669,18 @@ class _ChatDrawer extends StatelessWidget {
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: const Text('Leave Group'),
+                    title: Text(locale.leaveGroup),
                     content: Text(
-                      group.isLeader(chatService.currentUser?.id ?? '')
-                          ? 'Are you sure you want to dismiss this group? This action will remove the group for all members.'
-                          : 'Are you sure you want to leave this group?',
+                      group.isLeader(
+                            FirebaseAuth.instance.currentUser?.uid ?? '',
+                          )
+                          ? locale.leaveGroupLeaderConfirm
+                          : locale.leaveGroupMemberConfirm,
                     ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
+                        child: Text(locale.cancel),
                       ),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
@@ -574,11 +688,10 @@ class _ChatDrawer extends StatelessWidget {
                           foregroundColor: Colors.white,
                         ),
                         onPressed: () async {
-                          Navigator.pop(context); // Close dialog
+                          Navigator.pop(context);
 
-                          // Signal UI loading
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Processing...')),
+                            SnackBar(content: Text(locale.processing)),
                           );
 
                           final success = await groupService.leaveOrDeleteGroup(
@@ -595,13 +708,13 @@ class _ChatDrawer extends StatelessWidget {
                               SnackBar(
                                 content: Text(
                                   groupService.errorMessage ??
-                                      'Operation failed',
+                                      locale.operationFailed,
                                 ),
                               ),
                             );
                           }
                         },
-                        child: const Text('Confirm'),
+                        child: Text(locale.confirm),
                       ),
                     ],
                   ),
@@ -611,56 +724,6 @@ class _ChatDrawer extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _NewUserDialog extends StatefulWidget {
-  const _NewUserDialog();
-
-  @override
-  State<_NewUserDialog> createState() => _NewUserDialogState();
-}
-
-class _NewUserDialogState extends State<_NewUserDialog> {
-  final TextEditingController _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('New User Persona'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        decoration: const InputDecoration(
-          labelText: 'Name',
-          hintText: 'Enter your new identity...',
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            if (_controller.text.trim().isNotEmpty) {
-              Provider.of<ChatService>(
-                context,
-                listen: false,
-              ).addUser(_controller.text.trim());
-            }
-            Navigator.pop(context);
-          },
-          child: const Text('Add'),
-        ),
-      ],
     );
   }
 }
@@ -772,7 +835,7 @@ class _ChatInputAreaState extends State<_ChatInputArea> {
                   minLines: 1,
                   style: const TextStyle(fontSize: 15),
                   decoration: InputDecoration(
-                    hintText: 'Ask a question...',
+                    hintText: Provider.of<LocaleService>(context, listen: false).askQuestion,
                     hintStyle: TextStyle(
                       color: isDark ? Colors.white54 : Colors.black54,
                     ),
@@ -807,52 +870,6 @@ class _ChatInputAreaState extends State<_ChatInputArea> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _WelcomeUserDialog extends StatefulWidget {
-  const _WelcomeUserDialog();
-
-  @override
-  State<_WelcomeUserDialog> createState() => _WelcomeUserDialogState();
-}
-
-class _WelcomeUserDialogState extends State<_WelcomeUserDialog> {
-  final TextEditingController _controller = TextEditingController();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('欢迎！请设置你的名称'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        decoration: const InputDecoration(
-          labelText: 'Name',
-          hintText: 'Enter your identity...',
-        ),
-      ),
-      actions: [
-        ElevatedButton(
-          onPressed: () {
-            if (_controller.text.trim().isNotEmpty) {
-              Provider.of<ChatService>(
-                context,
-                listen: false,
-              ).addUser(_controller.text.trim());
-              Navigator.pop(context);
-            }
-          },
-          child: const Text('Let\'s Go'),
-        ),
-      ],
     );
   }
 }
@@ -894,5 +911,18 @@ class _AnimatedMessageEntryState extends State<_AnimatedMessageEntry>
   @override
   Widget build(BuildContext context) {
     return FadeTransition(opacity: _opacity, child: widget.child);
+  }
+}
+
+class _DiscussingText extends StatelessWidget {
+  const _DiscussingText();
+
+  @override
+  Widget build(BuildContext context) {
+    final locale = Provider.of<LocaleService>(context);
+    return Text(
+      locale.discussing,
+      style: const TextStyle(fontWeight: FontWeight.bold),
+    );
   }
 }

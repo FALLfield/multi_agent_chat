@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../models/group.dart';
 import '../services/group_service.dart';
 import '../services/chat_service.dart';
+import '../services/locale_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class GroupSettingsDialog extends StatefulWidget {
   final Group group;
@@ -54,28 +56,72 @@ class _GroupSettingsDialogState extends State<GroupSettingsDialog> {
     if (mounted) {
       if (success) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Group API Keys saved.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              Provider.of<LocaleService>(context, listen: false).apiKeysSaved,
+            ),
+          ),
+        );
       } else {
         setState(() => _isLoading = false);
-        // Error is shown in GroupService
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final locale = Provider.of<LocaleService>(context);
+    final isLeader = widget.group.isLeader(
+      FirebaseAuth.instance.currentUser?.uid ?? '',
+    );
     return AlertDialog(
-      title: const Text('Group Settings ⚙️'),
+      title: Text(locale.groupSettingsTitle),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Invite Code',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            // Language switcher
+            Row(
+              children: [
+                Icon(Icons.language, size: 20, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(locale.language, style: const TextStyle(fontWeight: FontWeight.bold)),
+                const Spacer(),
+                SegmentedButton<bool>(
+                  segments: [
+                    ButtonSegment(value: true, label: Text(locale.chinese)),
+                    ButtonSegment(value: false, label: Text(locale.english)),
+                  ],
+                  selected: {locale.isChinese},
+                  onSelectionChanged: (val) => locale.setLocale(val.first),
+                  style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            if (!isLeader)
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(8),
+                color: Colors.red.withValues(alpha: 0.1),
+                child: Row(
+                  children: [
+                    const Icon(Icons.lock, color: Colors.red, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        locale.onlyLeaderCanEdit,
+                        style: const TextStyle(color: Colors.red, fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Text(
+              locale.inviteCode,
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Container(
@@ -110,27 +156,28 @@ class _GroupSettingsDialogState extends State<GroupSettingsDialog> {
                         ClipboardData(text: widget.group.inviteCode),
                       );
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Invite code copied!')),
+                        SnackBar(content: Text(locale.inviteCodeCopied)),
                       );
                     },
-                    tooltip: 'Copy Invite Code',
+                    tooltip: locale.copyInviteCode,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Shared API Keys',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            Text(
+              locale.sharedApiKeysSection,
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'These keys are shared with all group members. Only the group leader can edit them.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+            Text(
+              locale.sharedApiKeysDesc,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _kimiController,
+              readOnly: !isLeader,
               decoration: const InputDecoration(
                 labelText: 'Kimi API Key',
                 border: OutlineInputBorder(),
@@ -139,6 +186,7 @@ class _GroupSettingsDialogState extends State<GroupSettingsDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: _deepseekController,
+              readOnly: !isLeader,
               decoration: const InputDecoration(
                 labelText: 'DeepSeek API Key',
                 border: OutlineInputBorder(),
@@ -147,6 +195,7 @@ class _GroupSettingsDialogState extends State<GroupSettingsDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: _doubaoController,
+              readOnly: !isLeader,
               decoration: const InputDecoration(
                 labelText: 'Doubao API Key',
                 border: OutlineInputBorder(),
@@ -155,16 +204,17 @@ class _GroupSettingsDialogState extends State<GroupSettingsDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: _doubaoEndpointController,
-              decoration: const InputDecoration(
+              readOnly: !isLeader,
+              decoration: InputDecoration(
                 labelText: 'Doubao Endpoint ID',
-                border: OutlineInputBorder(),
-                hintText: 'e.g., ep-2024...',
+                border: const OutlineInputBorder(),
+                hintText: locale.doubaoEndpointHint,
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Discussion Settings',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            Text(
+              locale.discussionSettings,
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Consumer<ChatService>(
@@ -173,7 +223,7 @@ class _GroupSettingsDialogState extends State<GroupSettingsDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Sequential Mode Rounds: ${chatService.discussionRounds}',
+                      '${locale.sequentialRounds}${chatService.discussionRounds}',
                       style: const TextStyle(fontSize: 13),
                     ),
                     Slider(
@@ -182,9 +232,11 @@ class _GroupSettingsDialogState extends State<GroupSettingsDialog> {
                       max: 5,
                       divisions: 4,
                       label: chatService.discussionRounds.toString(),
-                      onChanged: (val) {
-                        chatService.setDiscussionRounds(val.toInt());
-                      },
+                      onChanged: isLeader
+                          ? (val) {
+                              chatService.setDiscussionRounds(val.toInt());
+                            }
+                          : null,
                     ),
                   ],
                 );
@@ -196,18 +248,19 @@ class _GroupSettingsDialogState extends State<GroupSettingsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
+          child: Text(locale.close),
         ),
-        ElevatedButton(
-          onPressed: _isLoading ? null : _save,
-          child: _isLoading
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Save'),
-        ),
+        if (isLeader)
+          ElevatedButton(
+            onPressed: _isLoading ? null : _save,
+            child: _isLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(locale.save),
+          ),
       ],
     );
   }

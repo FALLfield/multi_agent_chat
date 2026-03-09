@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -6,17 +7,41 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/agent_persona.dart';
 import '../models/chat_message.dart';
 import '../models/chat_session.dart';
-import '../models/user_persona.dart';
 import '../models/group.dart';
 import 'database_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 enum DiscussionMode { sequential, concurrent }
 
 class ChatService extends ChangeNotifier {
   final DatabaseService _dbService = DatabaseService();
 
+  StreamSubscription<List<AgentPersona>>? _agentSubscription;
+  StreamSubscription<List<ChatSession>>? _sessionSubscription;
+  StreamSubscription<List<ChatMessage>>? _messageSubscription;
+
+  final Map<String, String> _localStreamingText = {};
+
   List<ChatMessage> _messages = [];
-  List<ChatMessage> get messages => _messages;
+  List<ChatMessage> get messages {
+    return _messages.map((m) {
+      if (_localStreamingText.containsKey(m.id)) {
+        return ChatMessage(
+          id: m.id,
+          text: _localStreamingText[m.id]!,
+          createdAt: m.createdAt,
+          isUser: m.isUser,
+          agent: m.agent,
+          sessionId: m.sessionId,
+          isConclusion: m.isConclusion,
+          senderName: m.senderName,
+          replyTo: m.replyTo,
+          groupId: m.groupId,
+        );
+      }
+      return m;
+    }).toList();
+  }
 
   // Store API Keys
   final Map<String, String> _apiKeys = {
@@ -56,15 +81,16 @@ class ChatService extends ChangeNotifier {
     await prefs.setInt('discussion_rounds', rounds);
   }
 
-  List<UserPersona> _users = [];
-  List<UserPersona> get users => _users;
-
-  UserPersona? _currentUser;
-  UserPersona? get currentUser => _currentUser;
-
-  void setCurrentUser(UserPersona user) {
-    _currentUser = user;
-    notifyListeners();
+  String get _currentUserName {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return "User";
+    if (user.displayName != null && user.displayName!.trim().isNotEmpty) {
+      return user.displayName!;
+    }
+    if (user.email != null) {
+      return user.email!.split('@').first;
+    }
+    return "User";
   }
 
   ChatService() {
@@ -73,43 +99,8 @@ class ChatService extends ChangeNotifier {
 
   Future<void> _initService() async {
     await _loadApiKeys();
-    await _loadUsers();
     await _loadAgents();
     await _loadSessions();
-  }
-
-  Future<void> _loadUsers() async {
-    _users = await _dbService.getUsers();
-    if (_users.isEmpty) {
-      final defaultUser = UserPersona(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: 'User 1',
-      );
-      await _dbService.insertUser(defaultUser);
-      _users.add(defaultUser);
-    }
-    _currentUser = _users.first;
-    notifyListeners();
-  }
-
-  Future<void> addUser(String name) async {
-    final newUser = UserPersona(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: name,
-    );
-    await _dbService.insertUser(newUser);
-    _users.add(newUser);
-    _currentUser = newUser;
-    notifyListeners();
-  }
-
-  Future<void> deleteUser(String id) async {
-    await _dbService.deleteUser(id);
-    _users.removeWhere((u) => u.id == id);
-    if (_currentUser?.id == id) {
-      _currentUser = _users.isNotEmpty ? _users.first : null;
-    }
-    notifyListeners();
   }
 
   // The roster of agents participating in the round table
@@ -124,6 +115,37 @@ class ChatService extends ChangeNotifier {
     setGroupApiKeys(group.apiKeys, group.doubaoEndpoint);
     await _loadAgents();
     await _loadSessions();
+    _startStreams();
+  }
+
+  void _startStreams() {
+    if (_activeGroupId == null) return;
+    _agentSubscription?.cancel();
+    _agentSubscription = _dbService.streamAgents(_activeGroupId!).listen((
+      agents,
+    ) {
+      _activeAgents = agents;
+      notifyListeners();
+    });
+
+    _sessionSubscription?.cancel();
+    _sessionSubscription = _dbService.streamSessions(_activeGroupId!).listen((
+      sessionsList,
+    ) {
+      _sessions = sessionsList;
+      if (_sessions.isNotEmpty) {
+        if (_activeSessionId == null ||
+            !sessionsList.any((s) => s.id == _activeSessionId)) {
+          loadSession(_sessions.first.id);
+        } else {
+          notifyListeners();
+        }
+      } else {
+        if (_activeSessionId == null) {
+          createNewSession();
+        }
+      }
+    });
   }
 
   void exitGroupMode() {
@@ -132,6 +154,10 @@ class ChatService extends ChangeNotifier {
     _activeAgents = [];
     _sessions = [];
     _messages = [];
+    _localStreamingText.clear();
+    _agentSubscription?.cancel();
+    _sessionSubscription?.cancel();
+    _messageSubscription?.cancel();
     notifyListeners();
   }
 
@@ -202,11 +228,19 @@ class ChatService extends ChangeNotifier {
   }
 
   Future<void> loadSession(String sessionId) async {
+    _localStreamingText.clear();
     _activeSessionId = sessionId;
     _messages = await _dbService.getMessagesForSession(
       sessionId,
       _activeAgents,
     );
+    _messageSubscription?.cancel();
+    _messageSubscription = _dbService
+        .streamMessages(sessionId, _activeAgents)
+        .listen((msgs) {
+          _messages = msgs;
+          notifyListeners();
+        });
     notifyListeners();
   }
 
@@ -221,6 +255,13 @@ class ChatService extends ChangeNotifier {
     _sessions.insert(0, newSession);
     _activeSessionId = newSession.id;
     _messages = [];
+    _messageSubscription?.cancel();
+    _messageSubscription = _dbService
+        .streamMessages(newSession.id, _activeAgents)
+        .listen((msgs) {
+          _messages = msgs;
+          notifyListeners();
+        });
     notifyListeners();
   }
 
@@ -236,6 +277,23 @@ class ChatService extends ChangeNotifier {
     _sessions[idx] = updated;
     await _dbService.updateSession(updated);
     notifyListeners();
+  }
+
+  Future<void> deleteSession(String sessionId) async {
+    await _dbService.deleteSession(sessionId);
+    _sessions.removeWhere((s) => s.id == sessionId);
+    if (_activeSessionId == sessionId) {
+      _activeSessionId = null;
+      _messages = [];
+      _messageSubscription?.cancel();
+      if (_sessions.isNotEmpty) {
+        await loadSession(_sessions.first.id);
+      } else {
+        await createNewSession();
+      }
+    } else {
+      notifyListeners();
+    }
   }
 
   Future<void> clearAllHistory() async {
@@ -394,7 +452,7 @@ class ChatService extends ChangeNotifier {
       createdAt: DateTime.now(),
       isUser: true,
       sessionId: _activeSessionId,
-      senderName: _currentUser?.name,
+      senderName: _currentUserName,
       groupId: _activeGroupId ?? '',
     );
     _messages.add(userMessage);
@@ -423,7 +481,7 @@ class ChatService extends ChangeNotifier {
     _isProcessing = true;
     notifyListeners();
 
-    final userName = _currentUser?.name ?? "User";
+    final userName = _currentUserName;
     String contextAccumulator = "User [$userName] asking: $questionText\n\n";
 
     final allParticipatingAgents = _activeAgents
@@ -692,6 +750,7 @@ class ChatService extends ChangeNotifier {
     bool isConclusion, {
     String? replyTo,
   }) {
+    _localStreamingText[messageId] = newText;
     final idx = _messages.indexWhere((m) => m.id == messageId);
     if (idx != -1) {
       final updatedMessage = ChatMessage(

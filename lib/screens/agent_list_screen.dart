@@ -1,36 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/chat_service.dart';
+import '../services/locale_service.dart';
 import 'agent_edit_dialog.dart';
+
+import 'package:firebase_auth/firebase_auth.dart';
+import '../services/group_service.dart';
 
 class AgentListScreen extends StatelessWidget {
   const AgentListScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final groupService = Provider.of<GroupService>(context, listen: false);
+    final locale = Provider.of<LocaleService>(context);
+    final isLeader =
+        groupService.activeGroup?.isLeader(
+          FirebaseAuth.instance.currentUser?.uid ?? '',
+        ) ??
+        false;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Agent Roster Configuration'),
+        title: Text(locale.agentRosterConfig),
         elevation: 0,
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (context) => const AgentEditDialog(),
-          );
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('New Agent'),
-      ),
+      floatingActionButton: isLeader
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (context) => const AgentEditDialog(),
+                );
+              },
+              icon: const Icon(Icons.add),
+              label: Text(locale.newAgent),
+            )
+          : null,
       body: Consumer<ChatService>(
         builder: (context, chatService, child) {
           final agents = chatService.activeAgents;
 
           if (agents.isEmpty) {
-            return const Center(
-              child: Text('No agents configured. Add one below.'),
-            );
+            return Center(child: Text(locale.noAgents));
           }
 
           return ListView.builder(
@@ -88,41 +100,43 @@ class AgentListScreen extends StatelessWidget {
                         chatService.toggleAgentParticipation(agent.id, val);
                       }
                     },
-                    secondary: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit, size: 20),
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (context) =>
-                                  AgentEditDialog(existingAgent: agent),
-                            );
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.delete,
-                            size: 20,
-                            color: Colors.redAccent,
-                          ),
-                          onPressed: () {
-                            if (agents.length <= 1) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Cannot delete the last agent!',
-                                  ),
+                    secondary: isLeader
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit, size: 20),
+                                onPressed: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) =>
+                                        AgentEditDialog(existingAgent: agent),
+                                  );
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(
+                                  Icons.delete,
+                                  size: 20,
+                                  color: Colors.redAccent,
                                 ),
-                              );
-                              return;
-                            }
-                            chatService.deleteAgent(agent.id);
-                          },
-                        ),
-                      ],
-                    ),
+                                onPressed: () {
+                                  if (agents.length <= 1) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          locale.cannotDeleteLastAgent,
+                                        ),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  chatService.deleteAgent(agent.id);
+                                },
+                              ),
+                            ],
+                          )
+                        : null,
                   ),
                 ),
               );

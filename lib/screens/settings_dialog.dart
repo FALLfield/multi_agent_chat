@@ -1,98 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/chat_service.dart';
+import '../services/locale_service.dart';
 
-class SettingsDialog extends StatefulWidget {
+class SettingsDialog extends StatelessWidget {
   const SettingsDialog({super.key});
 
   @override
-  State<SettingsDialog> createState() => _SettingsDialogState();
-}
-
-class _SettingsDialogState extends State<SettingsDialog> {
-  final Map<String, TextEditingController> _controllers = {
-    'kimi': TextEditingController(),
-    'doubao': TextEditingController(),
-    'deepseek': TextEditingController(),
-  };
-  final TextEditingController _doubaoEndpointController =
-      TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    // Load existing keys from ChatService
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final chatService = Provider.of<ChatService>(context, listen: false);
-      _controllers['kimi']?.text = chatService.getApiKey('kimi');
-      _controllers['doubao']?.text = chatService.getApiKey('doubao');
-      _controllers['deepseek']?.text = chatService.getApiKey('deepseek');
-      _doubaoEndpointController.text = chatService.doubaoEndpoint;
-    });
-  }
-
-  @override
-  void dispose() {
-    for (var c in _controllers.values) {
-      c.dispose();
-    }
-    _doubaoEndpointController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final locale = Provider.of<LocaleService>(context);
     return AlertDialog(
-      title: const Text('API Settings'),
+      title: Text(locale.apiSettings),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildApiKeyField('Kimi API Key', 'kimi'),
-            const SizedBox(height: 12),
-            _buildApiKeyField('DeepSeek API Key', 'deepseek'),
-            const Divider(height: 32),
-            _buildApiKeyField('Doubao API Key', 'doubao'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _doubaoEndpointController,
-              decoration: const InputDecoration(
-                labelText: 'Doubao Endpoint ID (ep-xxx)',
-                border: OutlineInputBorder(),
-                isDense: true,
-                helperText: '火山引擎需填入具体接入点ID',
-              ),
-              onChanged: (value) {
-                final chatService = Provider.of<ChatService>(
-                  context,
-                  listen: false,
-                );
-                chatService.updateDoubaoEndpoint(value);
-              },
+            Row(
+              children: [
+                Icon(Icons.language, size: 20, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(locale.language, style: const TextStyle(fontWeight: FontWeight.bold)),
+                const Spacer(),
+                SegmentedButton<bool>(
+                  segments: [
+                    ButtonSegment(value: true, label: Text(locale.chinese)),
+                    ButtonSegment(value: false, label: Text(locale.english)),
+                  ],
+                  selected: {locale.isChinese},
+                  onSelectionChanged: (val) => locale.setLocale(val.first),
+                  style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                ),
+              ],
             ),
-            const Divider(height: 32),
-            const Text(
-              'Discussion Settings',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            const Divider(height: 24),
+            Text(locale.discussionSettings, style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             Consumer<ChatService>(
-              builder: (context, chatService, child) {
+              builder: (context, chatService, _) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Sequential Mode Rounds: ${chatService.discussionRounds}',
-                    ),
+                    Text('${locale.sequentialRounds}${chatService.discussionRounds}'),
                     Slider(
                       value: chatService.discussionRounds.toDouble(),
                       min: 1,
                       max: 5,
                       divisions: 4,
                       label: chatService.discussionRounds.toString(),
-                      onChanged: (val) {
-                        chatService.setDiscussionRounds(val.toInt());
-                      },
+                      onChanged: (val) => chatService.setDiscussionRounds(val.toInt()),
                     ),
                   ],
                 );
@@ -104,25 +59,9 @@ class _SettingsDialogState extends State<SettingsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Close'),
+          child: Text(locale.close),
         ),
       ],
-    );
-  }
-
-  Widget _buildApiKeyField(String label, String key) {
-    return TextField(
-      controller: _controllers[key],
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        isDense: true,
-      ),
-      obscureText: true,
-      onChanged: (value) {
-        final chatService = Provider.of<ChatService>(context, listen: false);
-        chatService.updateApiKey(key, value);
-      },
     );
   }
 }

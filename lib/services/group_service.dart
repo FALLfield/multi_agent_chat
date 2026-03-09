@@ -52,17 +52,36 @@ class GroupService extends ChangeNotifier {
 
   /// Load the groups the current user belongs to
   Future<void> loadMyGroups() async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return;
+    final user = _auth.currentUser;
+    if (user == null) return;
+    final uid = user.uid;
+    final displayName =
+        user.displayName ?? user.email?.split('@').first ?? 'User';
+
     _isLoading = true;
     notifyListeners();
     try {
       final snap = await _db
           .collection('groups')
           .where('memberUids', arrayContains: uid)
-          .orderBy('createdAt', descending: true)
           .get();
       _myGroups = snap.docs.map((d) => Group.fromMap(d.id, d.data())).toList();
+      _myGroups.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      // Backfill: register current user's display name in every group's
+      // memberNames map (covers groups created before this field existed)
+      for (final doc in snap.docs) {
+        final existing = doc.data()['memberNames'];
+        final currentName = (existing is Map)
+            ? (existing[uid] as String?)
+            : null;
+        if (currentName != displayName) {
+          doc.reference
+              .update({'memberNames.$uid': displayName})
+              .catchError((_) {});
+        }
+      }
+
       // Restore active group if still valid
       if (_activeGroup != null) {
         final updated = _myGroups
@@ -100,6 +119,9 @@ class GroupService extends ChangeNotifier {
         apiKeys: apiKeys,
         doubaoEndpoint: doubaoEndpoint,
         memberUids: [user.uid],
+        memberNames: {
+          user.uid: user.displayName ?? user.email?.split('@').first ?? 'User',
+        },
         createdAt: DateTime.now(),
       );
       await docRef.set(group.toMap());
@@ -139,9 +161,10 @@ class GroupService extends ChangeNotifier {
         _activeGroup = group;
         return group;
       }
-      // Add user to memberUids array
       await doc.reference.update({
         'memberUids': FieldValue.arrayUnion([user.uid]),
+        'memberNames.${user.uid}':
+            user.displayName ?? user.email?.split('@').first ?? 'User',
       });
       final updated = Group(
         id: group.id,
@@ -151,6 +174,10 @@ class GroupService extends ChangeNotifier {
         apiKeys: group.apiKeys,
         doubaoEndpoint: group.doubaoEndpoint,
         memberUids: [...group.memberUids, user.uid],
+        memberNames: {
+          ...group.memberNames,
+          user.uid: user.displayName ?? user.email?.split('@').first ?? 'User',
+        },
         createdAt: group.createdAt,
       );
       _myGroups.insert(0, updated);
@@ -226,6 +253,7 @@ class GroupService extends ChangeNotifier {
           apiKeys: apiKeys,
           doubaoEndpoint: doubaoEndpoint,
           memberUids: old.memberUids,
+          memberNames: old.memberNames,
           createdAt: old.createdAt,
         );
         _myGroups[idx] = updated;

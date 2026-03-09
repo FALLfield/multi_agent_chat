@@ -28,7 +28,11 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   }
 
   Widget _buildUserMessage(BuildContext context) {
-    final senderName = widget.message.senderName;
+    String? senderName = widget.message.senderName;
+    if (senderName == null || senderName.trim().isEmpty) {
+      senderName = "User";
+    }
+
     return Align(
       alignment: Alignment.centerRight,
       child: Container(
@@ -43,20 +47,21 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            if (senderName != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  senderName,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.8),
-                  ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                senderName,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  // Use onPrimaryContainer which is guaranteed to contrast
+                  // against the bubble's primaryContainer background
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
                 ),
               ),
+            ),
             Text(
               widget.message.text,
               style: TextStyle(

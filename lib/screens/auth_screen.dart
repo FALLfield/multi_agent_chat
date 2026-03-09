@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../services/locale_service.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -131,10 +132,12 @@ class _AuthScreenState extends State<AuthScreen>
           ),
         ),
         const SizedBox(height: 6),
-        Text(
-          '多智能体讨论平台',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: isDark ? Colors.white54 : Colors.black45,
+        Consumer<LocaleService>(
+          builder: (context, locale, _) => Text(
+            locale.appSubtitle,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: isDark ? Colors.white54 : Colors.black45,
+            ),
           ),
         ),
       ],
@@ -170,31 +173,33 @@ class _AuthScreenState extends State<AuthScreen>
                   : Colors.black.withValues(alpha: 0.04),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: TabBar(
-              controller: _tabController,
-              indicator: BoxDecoration(
-                color: cs.primary,
-                borderRadius: BorderRadius.circular(10),
+            child: Consumer<LocaleService>(
+              builder: (context, locale, _) => TabBar(
+                controller: _tabController,
+                indicator: BoxDecoration(
+                  color: cs.primary,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                labelColor: Colors.white,
+                unselectedLabelColor: isDark ? Colors.white54 : Colors.black54,
+                dividerColor: Colors.transparent,
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+                tabs: [
+                  Tab(text: locale.login),
+                  Tab(text: locale.register),
+                ],
               ),
-              indicatorSize: TabBarIndicatorSize.tab,
-              labelColor: Colors.white,
-              unselectedLabelColor: isDark ? Colors.white54 : Colors.black54,
-              dividerColor: Colors.transparent,
-              labelStyle: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-              ),
-              tabs: const [
-                Tab(text: '登录'),
-                Tab(text: '注册'),
-              ],
             ),
           ),
           // Form
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-            child: Consumer<AuthService>(
-              builder: (context, auth, _) {
+            child: Consumer2<AuthService, LocaleService>(
+              builder: (context, auth, locale, _) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -240,7 +245,7 @@ class _AuthScreenState extends State<AuthScreen>
                               padding: const EdgeInsets.only(bottom: 16),
                               child: _buildTextField(
                                 controller: _nameController,
-                                label: '昵称',
+                                label: locale.nickname,
                                 icon: Icons.badge_outlined,
                                 isDark: isDark,
                               ),
@@ -248,7 +253,7 @@ class _AuthScreenState extends State<AuthScreen>
                     ),
                     _buildTextField(
                       controller: _emailController,
-                      label: '邮箱',
+                      label: locale.email,
                       icon: Icons.email_outlined,
                       keyboardType: TextInputType.emailAddress,
                       isDark: isDark,
@@ -256,7 +261,7 @@ class _AuthScreenState extends State<AuthScreen>
                     const SizedBox(height: 16),
                     _buildTextField(
                       controller: _passwordController,
-                      label: '密码',
+                      label: locale.password,
                       icon: Icons.lock_outline,
                       obscureText: _obscurePassword,
                       isDark: isDark,
@@ -297,7 +302,7 @@ class _AuthScreenState extends State<AuthScreen>
                                 ),
                               )
                             : Text(
-                                _tabController.index == 0 ? '登录' : '注册',
+                                _tabController.index == 0 ? locale.login : locale.register,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 15,
