@@ -100,8 +100,8 @@ class GroupService extends ChangeNotifier {
   /// Create a new group (only the leader calls this)
   Future<Group?> createGroup({
     required String name,
-    required Map<String, String> apiKeys,
-    required String doubaoEndpoint,
+    Map<String, String> apiKeys = const {},
+    String doubaoEndpoint = '',
   }) async {
     final user = _auth.currentUser;
     if (user == null) return null;
@@ -226,6 +226,26 @@ class GroupService extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Stream a single group document for real-time settings sync
+  Stream<Group> streamGroup(String groupId) {
+    return _db.collection('groups').doc(groupId).snapshots().map((snap) {
+      if (!snap.exists) throw Exception('Group not found');
+      return Group.fromMap(snap.id, snap.data()!);
+    });
+  }
+
+  /// Update discussion settings (leader only) — syncs to all members via Firestore
+  Future<void> updateDiscussionSettings({
+    required String groupId,
+    required int rounds,
+    required String mode,
+  }) async {
+    await _db.collection('groups').doc(groupId).update({
+      'discussionRounds': rounds,
+      'discussionMode': mode,
+    });
   }
 
   /// Update a group's API keys (leader only)

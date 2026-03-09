@@ -372,24 +372,30 @@ class _ChatDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final locale = Provider.of<LocaleService>(context);
+    final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final groupService = Provider.of<GroupService>(context, listen: false);
+    final isLeader =
+        groupService.activeGroup?.isLeader(currentUid) ?? false;
+
     return Drawer(
       backgroundColor: Theme.of(context).colorScheme.surface,
       child: SafeArea(
         child: Column(
           children: [
-            ListTile(
-              leading: const Icon(Icons.add_comment),
-              title: Text(locale.newDiscussion),
-              onTap: () {
-                final chatService = Provider.of<ChatService>(
-                  context,
-                  listen: false,
-                );
-                chatService.createNewSession();
-                Navigator.pop(context);
-              },
-            ),
-            const Divider(),
+            if (isLeader)
+              ListTile(
+                leading: const Icon(Icons.add_comment),
+                title: Text(locale.newDiscussion),
+                onTap: () {
+                  final chatService = Provider.of<ChatService>(
+                    context,
+                    listen: false,
+                  );
+                  chatService.createNewSession();
+                  Navigator.pop(context);
+                },
+              ),
+            if (isLeader) const Divider(),
             Expanded(
               child: Consumer<ChatService>(
                 builder: (context, chatService, child) {

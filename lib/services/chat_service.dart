@@ -9,16 +9,19 @@ import '../models/chat_message.dart';
 import '../models/chat_session.dart';
 import '../models/group.dart';
 import 'database_service.dart';
+import 'group_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 enum DiscussionMode { sequential, concurrent }
 
 class ChatService extends ChangeNotifier {
   final DatabaseService _dbService = DatabaseService();
+  final GroupService _groupService = GroupService();
 
   StreamSubscription<List<AgentPersona>>? _agentSubscription;
   StreamSubscription<List<ChatSession>>? _sessionSubscription;
   StreamSubscription<List<ChatMessage>>? _messageSubscription;
+  StreamSubscription<Group>? _groupSettingsSubscription;
 
   final Map<String, String> _localStreamingText = {};
 
@@ -43,20 +46,6 @@ class ChatService extends ChangeNotifier {
     }).toList();
   }
 
-  // Store API Keys
-  final Map<String, String> _apiKeys = {
-    'kimi': '',
-    'doubao': '',
-    'deepseek': '',
-  };
-
-  String _doubaoEndpoint = '';
-  String get doubaoEndpoint => _doubaoEndpoint;
-
-  // Store Group API Keys
-  Map<String, String>? _groupApiKeys;
-  String? _groupDoubaoEndpoint;
-
   String? _activeSessionId;
   String? get activeSessionId => _activeSessionId;
 
@@ -69,6 +58,14 @@ class ChatService extends ChangeNotifier {
   void setDiscussionMode(DiscussionMode mode) {
     _discussionMode = mode;
     notifyListeners();
+    // Persist to Firestore so all group members sync
+    if (_activeGroupId != null) {
+      _groupService.updateDiscussionSettings(
+        groupId: _activeGroupId!,
+        rounds: _discussionRounds,
+        mode: mode == DiscussionMode.sequential ? 'sequential' : 'concurrent',
+      );
+    }
   }
 
   int _discussionRounds = 1;
@@ -77,8 +74,19 @@ class ChatService extends ChangeNotifier {
   Future<void> setDiscussionRounds(int rounds) async {
     _discussionRounds = rounds;
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('discussion_rounds', rounds);
+    // Persist to Firestore so all group members sync
+    if (_activeGroupId != null) {
+      await _groupService.updateDiscussionSettings(
+        groupId: _activeGroupId!,
+        rounds: rounds,
+        mode: _discussionMode == DiscussionMode.sequential
+            ? 'sequential'
+            : 'concurrent',
+      );
+    } else {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('discussion_rounds', rounds);
+    }
   }
 
   String get _currentUserName {
@@ -98,7 +106,7 @@ class ChatService extends ChangeNotifier {
   }
 
   Future<void> _initService() async {
-    await _loadApiKeys();
+    await _loadSettings();
     await _loadAgents();
     await _loadSessions();
   }
@@ -112,7 +120,6 @@ class ChatService extends ChangeNotifier {
 
   Future<void> enterGroupMode(Group group) async {
     _activeGroupId = group.id;
-    setGroupApiKeys(group.apiKeys, group.doubaoEndpoint);
     await _loadAgents();
     await _loadSessions();
     _startStreams();
@@ -128,14 +135,35 @@ class ChatService extends ChangeNotifier {
       notifyListeners();
     });
 
+    // Bug1 fix: sync discussionRounds & discussionMode from Firestore in real-time
+    _groupSettingsSubscription?.cancel();
+    _groupSettingsSubscription = _groupService
+        .streamGroup(_activeGroupId!)
+        .listen((group) {
+          final newMode = group.discussionMode == 'concurrent'
+              ? DiscussionMode.concurrent
+              : DiscussionMode.sequential;
+          final newRounds = group.discussionRounds;
+          if (_discussionMode != newMode || _discussionRounds != newRounds) {
+            _discussionMode = newMode;
+            _discussionRounds = newRounds;
+            notifyListeners();
+          }
+        });
+
     _sessionSubscription?.cancel();
     _sessionSubscription = _dbService.streamSessions(_activeGroupId!).listen((
       sessionsList,
     ) {
       _sessions = sessionsList;
       if (_sessions.isNotEmpty) {
-        if (_activeSessionId == null ||
-            !sessionsList.any((s) => s.id == _activeSessionId)) {
+        // Bug3 fix: only auto-navigate if the current session was deleted
+        // (i.e. _activeSessionId is no longer in the list).
+        // Do NOT jump when another user creates a new session.
+        if (_activeSessionId == null) {
+          loadSession(_sessions.first.id);
+        } else if (!sessionsList.any((s) => s.id == _activeSessionId)) {
+          // Current session was deleted — navigate to the newest one
           loadSession(_sessions.first.id);
         } else {
           notifyListeners();
@@ -150,7 +178,6 @@ class ChatService extends ChangeNotifier {
 
   void exitGroupMode() {
     _activeGroupId = null;
-    clearGroupApiKeys();
     _activeAgents = [];
     _sessions = [];
     _messages = [];
@@ -158,62 +185,13 @@ class ChatService extends ChangeNotifier {
     _agentSubscription?.cancel();
     _sessionSubscription?.cancel();
     _messageSubscription?.cancel();
+    _groupSettingsSubscription?.cancel();
     notifyListeners();
   }
 
   Future<void> _loadAgents() async {
     if (_activeGroupId == null) return;
     _activeAgents = await _dbService.getAgents(_activeGroupId!);
-    if (_activeAgents.isEmpty) {
-      // Pick the first provider that actually has an API key configured
-      final providerPriority = ['kimi', 'deepseek', 'doubao'];
-      final modelMap = {
-        'kimi': 'moonshot-v1-8k',
-        'deepseek': 'deepseek-chat',
-        'doubao': 'doubao-pro-32k',
-      };
-      String bestProvider = providerPriority.first;
-      String bestModel = modelMap[bestProvider]!;
-      for (final p in providerPriority) {
-        if (getApiKey(p).isNotEmpty) {
-          bestProvider = p;
-          bestModel = modelMap[p]!;
-          break;
-        }
-      }
-
-      final defaults = [
-        AgentPersona(
-          id: 'agent_philosopher_${_activeGroupId!}',
-          name: '哲学家 (Philosopher)',
-          systemInstruction: '你是一位深邃的哲学家。请用苏格拉底式的引导方式，从伦理、道德、存在主义角度剖析当前问题。',
-          provider: bestProvider,
-          modelName: bestModel,
-          groupId: _activeGroupId!,
-        ),
-        AgentPersona(
-          id: 'agent_doctor_${_activeGroupId!}',
-          name: '医生 (Doctor)',
-          systemInstruction: '你是一位专业的临床主治医生。回复请带有职业素养，用循证医学的结构化思维去诊断问题的根本原因。',
-          provider: bestProvider,
-          modelName: bestModel,
-          groupId: _activeGroupId!,
-        ),
-        AgentPersona(
-          id: 'agent_programmer_${_activeGroupId!}',
-          name: '程序员 (Programmer)',
-          systemInstruction:
-              '你是一位高级全栈工程师。你信奉代码就是真理，喜欢用计算机科学、算法结构、系统架构等编程概念来解构现实世界。',
-          provider: bestProvider,
-          modelName: bestModel,
-          groupId: _activeGroupId!,
-        ),
-      ];
-      for (var agent in defaults) {
-        await _dbService.insertAgent(agent);
-        _activeAgents.add(agent);
-      }
-    }
     notifyListeners();
   }
 
@@ -303,39 +281,13 @@ class ChatService extends ChangeNotifier {
     createNewSession();
   }
 
-  Future<void> _loadApiKeys() async {
+  Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-
-    // Auto-inject previous macOS keys for seamless Web transition
-    if (prefs.getString('api_key_doubao') == null) {
-      await prefs.setString(
-        'api_key_doubao',
-        '5df968da-0311-4ce7-9fc0-75e4e5fcf79d',
-      );
-      await prefs.setString('doubao_endpoint', 'doubao-seed-2-0-pro-260215');
-      await prefs.setString(
-        'api_key_deepseek',
-        'sk-7a738ef7e5e3435facc6e1e30815b805',
-      );
-      await prefs.setString(
-        'api_key_kimi',
-        'sk-qZ4wI9mkso1UACFsYmKgZgF6kH4nHAXEuSw34hp0pxjPIrYK',
-      );
-    }
-
-    for (final provider in _apiKeys.keys) {
-      final key = prefs.getString('api_key_$provider');
-      if (key != null) {
-        _apiKeys[provider] = key;
-      }
-    }
-    _doubaoEndpoint = prefs.getString('doubao_endpoint') ?? '';
 
     final savedIds = prefs.getStringList('participating_agents');
     if (savedIds != null) {
       _participatingAgentIds = savedIds.toSet();
     } else {
-      // Default to all agents if never saved
       _participatingAgentIds = _activeAgents.map((a) => a.id).toSet();
     }
 
@@ -344,42 +296,16 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> updateApiKey(String provider, String key) async {
-    _apiKeys[provider] = key;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('api_key_$provider', key);
-    notifyListeners();
+  String getApiKey(String provider, {AgentPersona? agent}) {
+    if (agent != null && agent.apiKey.isNotEmpty) return agent.apiKey;
+    return '';
   }
 
-  Future<void> updateDoubaoEndpoint(String endpoint) async {
-    _doubaoEndpoint = endpoint;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('doubao_endpoint', endpoint);
-    notifyListeners();
-  }
-
-  void setGroupApiKeys(Map<String, String> keys, String doubaoEndpoint) {
-    _groupApiKeys = keys;
-    _groupDoubaoEndpoint = doubaoEndpoint;
-  }
-
-  void clearGroupApiKeys() {
-    _groupApiKeys = null;
-    _groupDoubaoEndpoint = null;
-  }
-
-  String getApiKey(String provider) {
-    if (_groupApiKeys != null && _groupApiKeys![provider]?.isNotEmpty == true) {
-      return _groupApiKeys![provider]!;
+  String getEffectiveDoubaoEndpoint({AgentPersona? agent}) {
+    if (agent != null && agent.doubaoEndpoint.isNotEmpty) {
+      return agent.doubaoEndpoint;
     }
-    return _apiKeys[provider] ?? '';
-  }
-
-  String getEffectiveDoubaoEndpoint() {
-    if (_groupDoubaoEndpoint != null && _groupDoubaoEndpoint!.isNotEmpty) {
-      return _groupDoubaoEndpoint!;
-    }
-    return _doubaoEndpoint;
+    return '';
   }
 
   Set<String> _participatingAgentIds = {};
@@ -490,26 +416,52 @@ class ChatService extends ChangeNotifier {
 
     // --- @Mention Directed Invocation ---
     // If the user's message contains @SomeAgentName, only invoke that agent.
+    // If @RealUserName is mentioned, inject that user's recent messages as context.
     final mentionedAgents = <AgentPersona>[];
+    String userMentionContext = '';
     final mentionRegex = RegExp(r'@(\S+)');
     final mentionMatches = mentionRegex.allMatches(questionText);
     if (mentionMatches.isNotEmpty) {
       for (final match in mentionMatches) {
         final raw = match.group(1)!.toLowerCase();
         // Try to find an agent whose name contains the mentioned keyword
-        final found = allParticipatingAgents.where(
+        final foundAgents = allParticipatingAgents.where(
           (a) => a.name.toLowerCase().contains(raw),
         );
-        mentionedAgents.addAll(found);
+        mentionedAgents.addAll(foundAgents);
+
+        // Bug2 fix: if no agent matched, look for a real user by senderName
+        if (foundAgents.isEmpty) {
+          final userMessages = _messages
+              .where(
+                (m) =>
+                    m.isUser &&
+                    (m.senderName?.toLowerCase().contains(raw) ?? false),
+              )
+              .toList();
+          if (userMessages.isNotEmpty) {
+            // Take the last 3 messages from that user as context
+            final recent = userMessages.length > 3
+                ? userMessages.sublist(userMessages.length - 3)
+                : userMessages;
+            final userName = userMessages.last.senderName ?? raw;
+            userMentionContext +=
+                '\n\n【用户 $userName 的最近发言，请针对这些内容进行讨论】:\n' +
+                recent.map((m) => '- ${m.text}').join('\n');
+          }
+        }
       }
     }
     // Use mentioned agents if found, otherwise all participating agents
     final isDirectMention = mentionedAgents.isNotEmpty;
     final participatingAgents = isDirectMention
-        ? mentionedAgents
-              .toSet()
-              .toList() // .toSet() deduplicates
+        ? mentionedAgents.toSet().toList()
         : allParticipatingAgents;
+
+    // Append user mention context to the accumulator
+    if (userMentionContext.isNotEmpty) {
+      contextAccumulator += userMentionContext;
+    }
 
     if (participatingAgents.isEmpty) {
       // Fallback message if no agents are active
@@ -571,21 +523,45 @@ class ChatService extends ChangeNotifier {
       // Conclusion Phase — only for multi-round non-directed discussions
       if (effectiveRounds > 1 && !isDirectMention && !_isCancelled) {
         contextAccumulator += "\n--- 结论阶段 ---\n";
+
+        // Step 1: each agent gives their own closing summary
         for (var agent in participatingAgents) {
           if (_isCancelled) break;
           final prompt =
-              "$contextAccumulator\n\n【系统附加指令】：作为辩论收尾，请在刚才多轮交锋的基础上，用一段话（100字以内）提炼出最大的分歧点和最终共识。";
-          final replyHint =
-              "\n【回复标注指令】：如果你在收尾时主要是认同或反对某一特定专家的总结，请在回复第一行写 @[那个专家名字]，然后换行写正文。";
+              "$contextAccumulator\n\n【系统附加指令】：作为辩论收尾，请在刚才多轮交锋的基础上，用一段话（100字以内）提炼出你自己的最终立场与核心观点。";
           final history = _buildHistoryPayload(agent, 6);
           final responseText = await _processAgentTurn(
             agent,
-            prompt + replyHint,
+            prompt,
             isConclusion: true,
             historyPayload: history,
           );
-          contextAccumulator += "\n<${agent.name} 最终裁决>: $responseText\n";
+          contextAccumulator += "\n<${agent.name} 最终立场>: $responseText\n";
           await Future.delayed(const Duration(milliseconds: 500));
+        }
+
+        // Step 2: a neutral moderator agent synthesizes everything into one final verdict
+        if (!_isCancelled) {
+          final firstAgent = participatingAgents.first;
+          final moderatorAgent = AgentPersona(
+            id: 'moderator_final',
+            name: '主持人 (Moderator)',
+            systemInstruction:
+                '你是一位中立、客观的讨论主持人。你的职责是综合所有参与者的观点，提炼核心分歧与共识，给出一个公正、全面的最终结论。',
+            provider: firstAgent.provider,
+            modelName: firstAgent.modelName,
+            groupId: _activeGroupId ?? '',
+            apiKey: firstAgent.apiKey,
+            doubaoEndpoint: firstAgent.doubaoEndpoint,
+          );
+          final moderatorPrompt =
+              "$contextAccumulator\n\n【系统附加指令】：以上是所有专家的最终立场。请你作为中立主持人，综合以上所有观点，用200字以内给出一个全面、客观的最终结论：包括各方最大分歧、达成的共识，以及你认为最有价值的洞见。";
+          await _processAgentTurn(
+            moderatorAgent,
+            moderatorPrompt,
+            isConclusion: true,
+            historyPayload: [],
+          );
         }
       }
     } else {
@@ -644,7 +620,7 @@ class ChatService extends ChangeNotifier {
     notifyListeners();
 
     String currentResponse = "";
-    final apiKey = getApiKey(agent.provider);
+    final apiKey = getApiKey(agent.provider, agent: agent);
     if (apiKey.isEmpty) {
       _updateMessageText(
         messageId,
@@ -840,38 +816,24 @@ class ChatService extends ChangeNotifier {
         })
         .join('\n\n');
 
-    // Pick the fastest available provider for summarization
-    String? bestKey;
-    String? bestProvider;
-    String? bestModel;
-    for (final entry in _apiKeys.entries) {
-      if (entry.value.isNotEmpty) {
-        bestProvider = entry.key;
-        bestKey = entry.value;
-        bestModel = _activeAgents
-            .firstWhere(
-              (a) => a.provider == bestProvider,
-              orElse: () => AgentPersona(
-                id: '',
-                name: '',
-                systemInstruction: '',
-                provider: bestProvider!,
-                modelName: bestProvider == 'doubao'
-                    ? (getEffectiveDoubaoEndpoint().isNotEmpty
-                          ? getEffectiveDoubaoEndpoint()
-                          : 'doubao-pro-32k')
-                    : (bestProvider == 'kimi'
-                          ? 'moonshot-v1-8k'
-                          : 'deepseek-chat'),
-                groupId: _activeGroupId ?? '',
-              ),
-            )
-            .modelName;
+    // Pick the first agent that has a key configured
+    AgentPersona? summaryAgent;
+    for (final a in _activeAgents) {
+      if (a.apiKey.isNotEmpty) {
+        summaryAgent = AgentPersona(
+          id: 'summarizer',
+          name: 'Summarizer',
+          systemInstruction: '你是一个专业的会议摘要生成器，输出简洁、准确，不超过200字。',
+          provider: a.provider,
+          modelName: a.modelName,
+          groupId: _activeGroupId ?? '',
+          apiKey: a.apiKey,
+          doubaoEndpoint: a.doubaoEndpoint,
+        );
         break;
       }
     }
-
-    if (bestKey == null || bestProvider == null) return;
+    if (summaryAgent == null) return;
 
     final existingSummary = _sessions[sessionIndex].summary ?? '';
     final summarizePrompt = existingSummary.isNotEmpty
@@ -879,15 +841,6 @@ class ChatService extends ChangeNotifier {
         : '你是一个讨论摘要生成器。请将以下讨论记录，生成一份不超过200字的核心摘要。重点提炼：主要分歧、共识、和各方关键观点。\n\n【讨论记录】:\n$transcript';
 
     try {
-      final summaryAgent = AgentPersona(
-        id: 'summarizer',
-        name: 'Summarizer',
-        systemInstruction: '你是一个专业的会议摘要生成器，输出简洁、准确，不超过200字。',
-        provider: bestProvider,
-        modelName: bestModel!,
-        groupId: _activeGroupId ?? '',
-      );
-
       // Collect the full summary text
       String newSummary = '';
       final summarizeClient = http.Client();
@@ -896,7 +849,7 @@ class ChatService extends ChangeNotifier {
           summaryAgent,
           [],
           summarizePrompt,
-          bestKey,
+          summaryAgent.apiKey,
           client: summarizeClient,
         );
         await for (final chunk in stream) {
@@ -950,8 +903,8 @@ class ChatService extends ChangeNotifier {
     }
 
     final modelToUse =
-        agent.provider == 'doubao' && getEffectiveDoubaoEndpoint().isNotEmpty
-        ? getEffectiveDoubaoEndpoint()
+        agent.provider == 'doubao' && getEffectiveDoubaoEndpoint(agent: agent).isNotEmpty
+        ? getEffectiveDoubaoEndpoint(agent: agent)
         : agent.modelName;
 
     final List<Map<String, String>> messages = [

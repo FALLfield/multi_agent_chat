@@ -4,7 +4,9 @@ class AgentPersona {
   final String systemInstruction;
   final String provider; // e.g., 'kimi', 'qwen', 'doubao', 'deepseek'
   final String modelName;
-  final String groupId; // The group this agent belongs to
+  final String groupId;
+  final String apiKey;       // per-agent API key
+  final String doubaoEndpoint; // only used when provider == 'doubao'
 
   const AgentPersona({
     required this.id,
@@ -13,6 +15,8 @@ class AgentPersona {
     required this.provider,
     required this.modelName,
     required this.groupId,
+    this.apiKey = '',
+    this.doubaoEndpoint = '',
   });
 
   Map<String, dynamic> toMap() {
@@ -23,6 +27,8 @@ class AgentPersona {
       'provider': provider,
       'modelName': modelName,
       'groupId': groupId,
+      'apiKey': apiKey,
+      'doubaoEndpoint': doubaoEndpoint,
     };
   }
 
@@ -34,6 +40,8 @@ class AgentPersona {
       provider: map['provider'] as String,
       modelName: map['modelName'] as String,
       groupId: map['groupId'] as String? ?? '',
+      apiKey: map['apiKey'] as String? ?? '',
+      doubaoEndpoint: map['doubaoEndpoint'] as String? ?? '',
     );
   }
 }

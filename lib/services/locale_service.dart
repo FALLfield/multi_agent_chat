@@ -53,12 +53,6 @@ class LocaleService extends ChangeNotifier {
   String get groupName => _isChinese ? '群组名称' : 'Group Name';
   String get groupNameRequired =>
       _isChinese ? '群组名称不能为空' : 'Group name is required';
-  String get sharedApiKeys =>
-      _isChinese ? '共享 API Keys（可选）' : 'Shared API Keys (Optional)';
-  String get sharedApiKeysHint =>
-      _isChinese
-          ? '作为群主，你可以为群组提供共享的 API Keys。'
-          : 'As leader, you can provide API keys for the group to share.';
   String get cancel => _isChinese ? '取消' : 'Cancel';
   String get create => _isChinese ? '创建' : 'Create';
   String get join => _isChinese ? '加入' : 'Join';
@@ -146,19 +140,11 @@ class LocaleService extends ChangeNotifier {
   String get inviteCodeCopied =>
       _isChinese ? '邀请码已复制！' : 'Invite code copied!';
   String get copyInviteCode => _isChinese ? '复制邀请码' : 'Copy Invite Code';
-  String get sharedApiKeysSection =>
-      _isChinese ? '共享 API Keys' : 'Shared API Keys';
-  String get sharedApiKeysDesc =>
-      _isChinese
-          ? '这些 Keys 对所有群组成员共享，只有群主可以编辑。'
-          : 'These keys are shared with all group members. Only the group leader can edit them.';
   String get discussionSettings =>
       _isChinese ? '讨论设置' : 'Discussion Settings';
   String get sequentialRounds =>
       _isChinese ? '顺序模式轮次：' : 'Sequential Mode Rounds: ';
   String get close => _isChinese ? '关闭' : 'Close';
-  String get apiKeysSaved =>
-      _isChinese ? '群组 API Keys 已保存。' : 'Group API Keys saved.';
   String get doubaoEndpointHint =>
       _isChinese ? '例如：ep-2024...' : 'e.g., ep-2024...';
   String get doubaoEndpointHelper =>

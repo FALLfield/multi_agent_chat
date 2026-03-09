@@ -8,6 +8,8 @@ class Group {
   final List<String> memberUids;
   final Map<String, String> memberNames;
   final DateTime createdAt;
+  final int discussionRounds;
+  final String discussionMode; // 'sequential' | 'concurrent'
 
   Group({
     required this.id,
@@ -19,6 +21,8 @@ class Group {
     required this.memberUids,
     required this.memberNames,
     required this.createdAt,
+    this.discussionRounds = 1,
+    this.discussionMode = 'sequential',
   });
 
   bool isLeader(String uid) => leaderUid == uid;
@@ -36,6 +40,8 @@ class Group {
       createdAt: map['createdAt'] != null
           ? DateTime.parse(map['createdAt'] as String)
           : DateTime.now(),
+      discussionRounds: (map['discussionRounds'] as num?)?.toInt() ?? 1,
+      discussionMode: map['discussionMode'] as String? ?? 'sequential',
     );
   }
 
@@ -49,6 +55,8 @@ class Group {
       'memberUids': memberUids,
       'memberNames': memberNames,
       'createdAt': createdAt.toIso8601String(),
+      'discussionRounds': discussionRounds,
+      'discussionMode': discussionMode,
     };
   }
 }

@@ -257,10 +257,6 @@ class _CreateGroupDialog extends StatefulWidget {
 
 class _CreateGroupDialogState extends State<_CreateGroupDialog> {
   final _nameController = TextEditingController();
-  final _kimiController = TextEditingController();
-  final _doubaoController = TextEditingController();
-  final _deepseekController = TextEditingController();
-  final _doubaoEndpointController = TextEditingController();
 
   bool _isLoading = false;
   String? _error;
@@ -268,10 +264,6 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
   @override
   void dispose() {
     _nameController.dispose();
-    _kimiController.dispose();
-    _doubaoController.dispose();
-    _deepseekController.dispose();
-    _doubaoEndpointController.dispose();
     super.dispose();
   }
 
@@ -289,15 +281,7 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
     });
 
     final service = Provider.of<GroupService>(context, listen: false);
-    final group = await service.createGroup(
-      name: name,
-      apiKeys: {
-        'kimi': _kimiController.text.trim(),
-        'doubao': _doubaoController.text.trim(),
-        'deepseek': _deepseekController.text.trim(),
-      },
-      doubaoEndpoint: _doubaoEndpointController.text.trim(),
-    );
+    final group = await service.createGroup(name: name);
 
     if (mounted) {
       if (group != null) {
@@ -316,69 +300,25 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
     final locale = Provider.of<LocaleService>(context);
     return AlertDialog(
       title: Text(locale.createNewGroup),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Text(_error!, style: const TextStyle(color: Colors.red)),
-              ),
-            TextField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: locale.groupName,
-                border: const OutlineInputBorder(),
-              ),
-              autofocus: true,
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text(_error!, style: const TextStyle(color: Colors.red)),
             ),
-            const SizedBox(height: 24),
-            Text(
-              locale.sharedApiKeys,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+          TextField(
+            controller: _nameController,
+            decoration: InputDecoration(
+              labelText: locale.groupName,
+              border: const OutlineInputBorder(),
             ),
-            const SizedBox(height: 8),
-            Text(
-              locale.sharedApiKeysHint,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _kimiController,
-              decoration: const InputDecoration(
-                labelText: 'Kimi API Key',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _deepseekController,
-              decoration: const InputDecoration(
-                labelText: 'DeepSeek API Key',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _doubaoController,
-              decoration: const InputDecoration(
-                labelText: 'Doubao API Key',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _doubaoEndpointController,
-              decoration: InputDecoration(
-                labelText: 'Doubao Endpoint ID',
-                border: const OutlineInputBorder(),
-                hintText: locale.doubaoEndpointHint,
-              ),
-            ),
-          ],
-        ),
+            autofocus: true,
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
       ),
       actions: [
         TextButton(
