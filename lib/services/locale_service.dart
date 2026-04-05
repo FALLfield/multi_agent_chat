@@ -38,8 +38,9 @@ class LocaleService extends ChangeNotifier {
   // Home
   String get groups => _isChinese ? '群组' : 'Groups';
   String get noGroupsYet => _isChinese ? '暂无群组' : 'No Groups Yet';
-  String get noGroupsHint =>
-      _isChinese ? '创建或加入群组开始协作。' : 'Create or join a group to start collaborating.';
+  String get noGroupsHint => _isChinese
+      ? '创建或加入群组开始协作。'
+      : 'Create or join a group to start collaborating.';
   String get joinGroup => _isChinese ? '加入群组' : 'Join Group';
   String get createGroup => _isChinese ? '创建群组' : 'Create Group';
   String get newGroup => _isChinese ? '新建群组' : 'New Group';
@@ -71,7 +72,8 @@ class LocaleService extends ChangeNotifier {
   String get exportChat => _isChinese ? '导出对话' : 'Export Chat';
   String get toggleTheme => _isChinese ? '切换主题' : 'Toggle Theme';
   String get groupSettings => _isChinese ? '群组设置' : 'Group Settings';
-  String get nothingToExport => _isChinese ? '暂无内容可导出。' : 'Nothing to export yet.';
+  String get nothingToExport =>
+      _isChinese ? '暂无内容可导出。' : 'Nothing to export yet.';
   String get chatExported =>
       _isChinese ? '对话已导出 — 请查看下载文件夹' : 'Chat exported — check Downloads';
   String get exportFailed => _isChinese ? '导出失败：' : 'Export failed: ';
@@ -84,18 +86,16 @@ class LocaleService extends ChangeNotifier {
   String get concurrent => _isChinese ? '并发' : 'Concurrent';
   String get rounds => _isChinese ? '轮次：' : 'Rounds: ';
   String get activeAgents => _isChinese ? '参与 Agent：' : 'Active Agents: ';
-  String get switchedToMode =>
-      _isChinese ? '已切换至' : 'Switched to ';
-  String get modeText =>
-      _isChinese ? '模式' : ' Mode';
+  String get switchedToMode => _isChinese ? '已切换至' : 'Switched to ';
+  String get modeText => _isChinese ? '模式' : ' Mode';
   String get discussing => _isChinese ? '正在讨论中...' : 'Discussing...';
   String get askQuestion => _isChinese ? '提问...' : 'Ask a question...';
-  String get debatePromptPrefix =>
-      _isChinese ? '针对以下观点发起深度辩论：\n\n『' : 'Start an in-depth debate on the following point:\n\n"';
-  String get debatePromptSuffix =>
-      _isChinese
-          ? '』\n\n请就此发表看法或提出反驳意见：\n'
-          : '"\n\nPlease share your view or counter-argument:\n';
+  String get debatePromptPrefix => _isChinese
+      ? '针对以下观点发起深度辩论：\n\n『'
+      : 'Start an in-depth debate on the following point:\n\n"';
+  String get debatePromptSuffix => _isChinese
+      ? '』\n\n请就此发表看法或提出反驳意见：\n'
+      : '"\n\nPlease share your view or counter-argument:\n';
 
   // Drawer
   String get noDiscussionHistory =>
@@ -111,20 +111,18 @@ class LocaleService extends ChangeNotifier {
       _isChinese ? '」吗？此操作不可撤销。' : '"? This cannot be undone.';
   String get delete => _isChinese ? '删除' : 'Delete';
   String get clearHistory => _isChinese ? '清空历史记录' : 'Clear History';
-  String get clearHistoryConfirm =>
-      _isChinese
-          ? '确定要删除所有聊天记录吗？此操作不可撤销。'
-          : 'Are you sure you want to delete all chat history? This cannot be undone.';
+  String get clearHistoryConfirm => _isChinese
+      ? '确定要删除所有聊天记录吗？此操作不可撤销。'
+      : 'Are you sure you want to delete all chat history? This cannot be undone.';
   String get clear => _isChinese ? '清空' : 'Clear';
   String get groupMembers => _isChinese ? '群组成员' : 'Group Members';
   String get agentRoster => _isChinese ? 'Agent 配置' : 'Agent Roster';
   String get leaveDeleteGroup =>
       _isChinese ? '退出 / 解散群组' : 'Leave / Delete Group';
   String get leaveGroup => _isChinese ? '退出群组' : 'Leave Group';
-  String get leaveGroupLeaderConfirm =>
-      _isChinese
-          ? '确定要解散此群组吗？此操作将移除所有成员的群组访问权限。'
-          : 'Are you sure you want to dismiss this group? This action will remove the group for all members.';
+  String get leaveGroupLeaderConfirm => _isChinese
+      ? '确定要解散此群组吗？此操作将移除所有成员的群组访问权限。'
+      : 'Are you sure you want to dismiss this group? This action will remove the group for all members.';
   String get leaveGroupMemberConfirm =>
       _isChinese ? '确定要退出此群组吗？' : 'Are you sure you want to leave this group?';
   String get processing => _isChinese ? '处理中...' : 'Processing...';
@@ -134,21 +132,19 @@ class LocaleService extends ChangeNotifier {
   // Group Settings Dialog
   String get groupSettingsTitle => _isChinese ? '群组设置 ⚙️' : 'Group Settings ⚙️';
   String get onlyLeaderCanEdit =>
-      _isChinese
-          ? '只有群主可以编辑设置。'
-          : 'Only the group leader can edit settings.';
-  String get inviteCodeCopied =>
-      _isChinese ? '邀请码已复制！' : 'Invite code copied!';
+      _isChinese ? '只有群主可以编辑设置。' : 'Only the group leader can edit settings.';
+  String get inviteCodeCopied => _isChinese ? '邀请码已复制！' : 'Invite code copied!';
   String get copyInviteCode => _isChinese ? '复制邀请码' : 'Copy Invite Code';
-  String get discussionSettings =>
-      _isChinese ? '讨论设置' : 'Discussion Settings';
+  String get discussionSettings => _isChinese ? '讨论设置' : 'Discussion Settings';
+  String get discussionMode => _isChinese ? '讨论模式' : 'Discussion Mode';
   String get sequentialRounds =>
       _isChinese ? '顺序模式轮次：' : 'Sequential Mode Rounds: ';
   String get close => _isChinese ? '关闭' : 'Close';
   String get doubaoEndpointHint =>
       _isChinese ? '例如：ep-2024...' : 'e.g., ep-2024...';
-  String get doubaoEndpointHelper =>
-      _isChinese ? '火山引擎需填入具体接入点ID' : 'Volcengine requires a specific endpoint ID';
+  String get doubaoEndpointHelper => _isChinese
+      ? '火山引擎需填入具体接入点ID'
+      : 'Volcengine requires a specific endpoint ID';
 
   // Settings Dialog
   String get apiSettings => _isChinese ? 'API 设置' : 'API Settings';
@@ -164,4 +160,17 @@ class LocaleService extends ChangeNotifier {
       _isChinese ? '暂无 Agent，请添加。' : 'No agents configured. Add one below.';
   String get cannotDeleteLastAgent =>
       _isChinese ? '不能删除最后一个 Agent！' : 'Cannot delete the last agent!';
+
+  // Chat Screen
+  String get stopGeneration => _isChinese ? '停止' : 'Stop';
+  String get selectAgents => _isChinese ? '选择 Agent' : 'Select Agents';
+  String get allAgentsSelected => _isChinese ? '全部参与' : 'All participating';
+  String get typingIndicator => _isChinese ? '正在思考...' : 'is thinking...';
+  String get agentCountLabel =>
+      _isChinese ? ' 位 Agent 将参与回复' : ' agents will respond';
+  String get selectAgentsHint => _isChinese
+      ? '输入问题，@提及或点选上方 Agent'
+      : 'Ask a question. @mention or select agents above.';
+  String get discussionHistory => _isChinese ? '讨论记录' : 'Discussion History';
+  String get management => _isChinese ? '管理' : 'Management';
 }

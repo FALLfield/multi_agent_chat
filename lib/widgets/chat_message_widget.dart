@@ -32,6 +32,8 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
     if (senderName == null || senderName.trim().isEmpty) {
       senderName = "User";
     }
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Align(
       alignment: Alignment.centerRight,
@@ -39,7 +41,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         margin: const EdgeInsets.only(bottom: 24, left: 48),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primaryContainer,
+          color: colorScheme.primaryContainer,
           borderRadius: BorderRadius.circular(
             24,
           ).copyWith(bottomRight: const Radius.circular(8)),
@@ -54,19 +56,31 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  // Use onPrimaryContainer which is guaranteed to contrast
-                  // against the bubble's primaryContainer background
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
+                  color: colorScheme.onPrimaryContainer.withValues(alpha: 0.7),
                 ),
               ),
             ),
-            Text(
-              widget.message.text,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
-                fontSize: 16,
+            MarkdownBody(
+              data: widget.message.text,
+              selectable: true,
+              styleSheet: MarkdownStyleSheet(
+                p: TextStyle(
+                  color: colorScheme.onPrimaryContainer,
+                  fontSize: 16,
+                  height: 1.5,
+                ),
+                code: TextStyle(
+                  backgroundColor: colorScheme.surface,
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                ),
+                codeblockDecoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isDark ? Colors.white12 : Colors.black12,
+                  ),
+                ),
               ),
             ),
           ],
@@ -252,9 +266,12 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                 context,
                               ).colorScheme.surface,
                               fontFamily: 'monospace',
+                              fontSize: 13,
                             ),
                             codeblockDecoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surface,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.surfaceContainerHighest,
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
                                 color: isDark ? Colors.white12 : Colors.black12,
@@ -262,6 +279,16 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                             ),
                           ),
                         ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _formatTime(widget.message.createdAt),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.3),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -406,4 +433,10 @@ class _ThinkingTextState extends State<_ThinkingText>
       ),
     );
   }
+}
+
+String _formatTime(DateTime dt) {
+  final h = dt.hour.toString().padLeft(2, '0');
+  final m = dt.minute.toString().padLeft(2, '0');
+  return '$h:$m';
 }

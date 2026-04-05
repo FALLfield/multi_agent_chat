@@ -132,6 +132,10 @@ class ChatService extends ChangeNotifier {
       agents,
     ) {
       _activeAgents = agents;
+      // Auto-select all agents if none are currently participating
+      if (_participatingAgentIds.isEmpty && agents.isNotEmpty) {
+        _participatingAgentIds = agents.map((a) => a.id).toSet();
+      }
       notifyListeners();
     });
 
@@ -192,6 +196,10 @@ class ChatService extends ChangeNotifier {
   Future<void> _loadAgents() async {
     if (_activeGroupId == null) return;
     _activeAgents = await _dbService.getAgents(_activeGroupId!);
+    // Auto-select all agents if none are currently participating
+    if (_participatingAgentIds.isEmpty && _activeAgents.isNotEmpty) {
+      _participatingAgentIds = _activeAgents.map((a) => a.id).toSet();
+    }
     notifyListeners();
   }
 
@@ -353,6 +361,10 @@ class ChatService extends ChangeNotifier {
   bool _isProcessing = false;
   bool get isProcessing => _isProcessing;
 
+  /// The agent currently being processed. Updated before/after each agent turn.
+  AgentPersona? _currentSpeakingAgent;
+  AgentPersona? get currentSpeakingAgent => _currentSpeakingAgent;
+
   bool _isCancelled = false;
   http.Client? _httpClient;
 
@@ -361,6 +373,7 @@ class ChatService extends ChangeNotifier {
     _httpClient?.close();
     _httpClient = null;
     _isProcessing = false;
+    _currentSpeakingAgent = null;
     notifyListeners();
   }
 
@@ -446,8 +459,8 @@ class ChatService extends ChangeNotifier {
                 : userMessages;
             final userName = userMessages.last.senderName ?? raw;
             userMentionContext +=
-                '\n\n【用户 $userName 的最近发言，请针对这些内容进行讨论】:\n' +
-                recent.map((m) => '- ${m.text}').join('\n');
+                '\n\n【用户 $userName 的最近发言，请针对这些内容进行讨论】:\n'
+                '${recent.map((m) => '- ${m.text}').join('\n')}';
           }
         }
       }
@@ -491,6 +504,8 @@ class ChatService extends ChangeNotifier {
         }
         for (var agent in participatingAgents) {
           if (_isCancelled) break;
+          _currentSpeakingAgent = agent;
+          notifyListeners();
           String systemDebatePrompt = "";
           if (i > 0) {
             systemDebatePrompt =
@@ -527,6 +542,8 @@ class ChatService extends ChangeNotifier {
         // Step 1: each agent gives their own closing summary
         for (var agent in participatingAgents) {
           if (_isCancelled) break;
+          _currentSpeakingAgent = agent;
+          notifyListeners();
           final prompt =
               "$contextAccumulator\n\n【系统附加指令】：作为辩论收尾，请在刚才多轮交锋的基础上，用一段话（100字以内）提炼出你自己的最终立场与核心观点。";
           final history = _buildHistoryPayload(agent, 6);
@@ -543,6 +560,17 @@ class ChatService extends ChangeNotifier {
         // Step 2: a neutral moderator agent synthesizes everything into one final verdict
         if (!_isCancelled) {
           final firstAgent = participatingAgents.first;
+          _currentSpeakingAgent = AgentPersona(
+            id: 'moderator_final',
+            name: '主持人 (Moderator)',
+            systemInstruction: '',
+            provider: firstAgent.provider,
+            modelName: firstAgent.modelName,
+            groupId: _activeGroupId ?? '',
+            apiKey: firstAgent.apiKey,
+            doubaoEndpoint: firstAgent.doubaoEndpoint,
+          );
+          notifyListeners();
           final moderatorAgent = AgentPersona(
             id: 'moderator_final',
             name: '主持人 (Moderator)',
@@ -569,6 +597,9 @@ class ChatService extends ChangeNotifier {
       List<Future<void>> futures = [];
       for (var agent in participatingAgents) {
         if (_isCancelled) break;
+        _currentSpeakingAgent = agent;
+        notifyListeners();
+        if (_isCancelled) break;
         final replyHint = (_messages.length > 1 && !isDirectMention)
             ? "\n\n【严格格式指令 — 必须遵守】：如果你的回复主要针对某一个特定人的观点，你必须在回复的第一行单独写 @对方名字（例如：@先锋艺术家），该行不能有任何其他文字。第二行起再写正文内容。如果是综合性发言，直接写正文，不要加 @ 标注。"
             : "";
@@ -585,6 +616,7 @@ class ChatService extends ChangeNotifier {
     }
 
     _isProcessing = false;
+    _currentSpeakingAgent = null;
     _httpClient?.close();
     _httpClient = null;
     notifyListeners();
@@ -903,7 +935,8 @@ class ChatService extends ChangeNotifier {
     }
 
     final modelToUse =
-        agent.provider == 'doubao' && getEffectiveDoubaoEndpoint(agent: agent).isNotEmpty
+        agent.provider == 'doubao' &&
+            getEffectiveDoubaoEndpoint(agent: agent).isNotEmpty
         ? getEffectiveDoubaoEndpoint(agent: agent)
         : agent.modelName;
 

@@ -17,6 +17,8 @@ class GroupSettingsDialog extends StatelessWidget {
     final isLeader = group.isLeader(
       FirebaseAuth.instance.currentUser?.uid ?? '',
     );
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return AlertDialog(
       title: Text(locale.groupSettingsTitle),
@@ -28,9 +30,12 @@ class GroupSettingsDialog extends StatelessWidget {
             // Language switcher
             Row(
               children: [
-                Icon(Icons.language, size: 20, color: Theme.of(context).colorScheme.primary),
+                Icon(Icons.language, size: 20, color: colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(locale.language, style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  locale.language,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const Spacer(),
                 SegmentedButton<bool>(
                   segments: [
@@ -39,22 +44,29 @@ class GroupSettingsDialog extends StatelessWidget {
                   ],
                   selected: {locale.isChinese},
                   onSelectionChanged: (val) => locale.setLocale(val.first),
-                  style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
               ],
             ),
             const Divider(height: 24),
 
             // Invite code
-            Text(locale.inviteCode, style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              locale.inviteCode,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(8),
+                color: isDark
+                    ? colorScheme.primaryContainer.withValues(alpha: 0.15)
+                    : colorScheme.primaryContainer.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                  color: colorScheme.primary.withValues(alpha: 0.4),
                 ),
               ),
               child: Row(
@@ -66,11 +78,11 @@ class GroupSettingsDialog extends StatelessWidget {
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 4,
-                      color: Theme.of(context).colorScheme.primary,
+                      color: colorScheme.primary,
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.copy),
+                    icon: Icon(Icons.copy, color: colorScheme.primary),
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: group.inviteCode));
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -85,41 +97,109 @@ class GroupSettingsDialog extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Discussion settings (leader only)
-            Text(locale.discussionSettings, style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(
+              locale.discussionSettings,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 8),
             if (!isLeader)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
                   children: [
-                    const Icon(Icons.lock, color: Colors.grey, size: 14),
+                    const Icon(Icons.lock, size: 14),
                     const SizedBox(width: 6),
                     Text(
                       locale.onlyLeaderCanEdit,
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                      style: TextStyle(
+                        color: colorScheme.onSurface.withValues(alpha: 0.4),
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
               ),
             Consumer<ChatService>(
               builder: (context, chatService, _) {
+                final isSequential =
+                    chatService.discussionMode == DiscussionMode.sequential;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '${locale.sequentialRounds}${chatService.discussionRounds}',
-                      style: const TextStyle(fontSize: 13),
+                    // Discussion mode toggle
+                    Row(
+                      children: [
+                        Icon(
+                          isSequential
+                              ? Icons.linear_scale
+                              : Icons.scatter_plot,
+                          size: 18,
+                          color: colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          locale.discussionMode,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: colorScheme.onSurface.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        const Spacer(),
+                        SegmentedButton<bool>(
+                          segments: [
+                            ButtonSegment(
+                              value: true,
+                              label: Text(locale.sequential),
+                              icon: const Icon(Icons.linear_scale, size: 16),
+                            ),
+                            ButtonSegment(
+                              value: false,
+                              label: Text(locale.concurrent),
+                              icon: const Icon(Icons.scatter_plot, size: 16),
+                            ),
+                          ],
+                          selected: {isSequential},
+                          onSelectionChanged: isLeader
+                              ? (val) => chatService.setDiscussionMode(
+                                  val.first
+                                      ? DiscussionMode.sequential
+                                      : DiscussionMode.concurrent,
+                                )
+                              : null,
+                          style: const ButtonStyle(
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                      ],
                     ),
-                    Slider(
-                      value: chatService.discussionRounds.toDouble(),
-                      min: 1,
-                      max: 5,
-                      divisions: 4,
-                      label: chatService.discussionRounds.toString(),
-                      onChanged: isLeader
-                          ? (val) => chatService.setDiscussionRounds(val.toInt())
-                          : null,
-                    ),
+                    const SizedBox(height: 12),
+                    // Rounds slider (sequential only)
+                    if (isSequential)
+                      Row(
+                        children: [
+                          Text(
+                            '${locale.sequentialRounds}${chatService.discussionRounds}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: colorScheme.onSurface.withValues(
+                                alpha: 0.7,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (isSequential)
+                      Slider(
+                        value: chatService.discussionRounds.toDouble(),
+                        min: 1,
+                        max: 5,
+                        divisions: 4,
+                        label: chatService.discussionRounds.toString(),
+                        onChanged: isLeader
+                            ? (val) =>
+                                  chatService.setDiscussionRounds(val.toInt())
+                            : null,
+                      ),
                   ],
                 );
               },

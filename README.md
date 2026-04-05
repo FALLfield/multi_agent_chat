@@ -87,14 +87,17 @@ multi_agent_chat/
 │   │   ├── agent_persona.dart     # Agent 数据模型
 │   │   ├── chat_message.dart      # 消息数据模型
 │   │   ├── chat_session.dart      # 会话数据模型
-│   │   └── group.dart             # 群组数据模型
+│   │   ├── group.dart             # 群组数据模型
+│   │   └── user_persona.dart      # 用户数据模型
 │   ├── services/
 │   │   ├── auth_service.dart      # Firebase Auth 封装
 │   │   ├── chat_service.dart      # 核心讨论引擎（状态管理 + LLM 调用）
 │   │   ├── database_service.dart  # Firestore CRUD 操作封装
 │   │   ├── group_service.dart     # 群组管理（创建/加入/退出/设置同步）
 │   │   ├── locale_service.dart    # 国际化字符串管理
-│   │   └── export_helper.dart     # 对话导出（Web / Native）
+│   │   ├── export_helper.dart     # 对话导出入口（条件导入）
+│   │   ├── export_helper_web.dart # Web 端导出实现
+│   │   └── export_helper_stub.dart # 非 Web 端导出桩实现
 │   ├── screens/
 │   │   ├── auth_screen.dart       # 登录 / 注册页
 │   │   ├── home_screen.dart       # 群组列表页
@@ -125,7 +128,8 @@ multi_agent_chat/
 
 ### 数据存储
 
-所有数据存储于 **Firebase Firestore**，结构如下：
+- **Firebase Firestore**：云端数据存储，支持群组成员实时同步
+- **SQLite**（`sqflite`）：本地缓存（通过 `DatabaseService` 管理）
 
 ```
 groups/{groupId}
@@ -244,4 +248,7 @@ flutter run -d android
 | `http` | LLM API 流式请求 |
 | `flutter_markdown` | 消息内容 Markdown 渲染 |
 | `shared_preferences` | 本地持久化（语言设置、讨论轮次等） |
+| `sqflite` | SQLite 本地数据库 |
+| `path_provider` / `path` | 文件路径与本地存储 |
+| `web` | Web 平台导出支持 |
 | `flutter_animate` | UI 动画 |

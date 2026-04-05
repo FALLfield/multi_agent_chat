@@ -45,12 +45,21 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: Text(locale.groups),
         actions: [
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16.0),
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: CircleAvatar(
+              radius: 16,
+              backgroundColor: cs.primaryContainer,
               child: Text(
-                auth.currentUser?.displayName ?? 'User',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                (auth.currentUser?.displayName ??
+                        auth.currentUser?.email ??
+                        'U')[0]
+                    .toUpperCase(),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: cs.onPrimaryContainer,
+                ),
               ),
             ),
           ),
@@ -88,46 +97,61 @@ class _HomeScreenState extends State<HomeScreen> {
 
           if (groupService.myGroups.isEmpty) {
             return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.groups_outlined,
-                    size: 80,
-                    color: cs.onSurface.withValues(alpha: 0.2),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    locale.noGroupsYet,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: cs.onSurface.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    locale.noGroupsHint,
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: _joinGroup,
-                        icon: const Icon(Icons.login),
-                        label: Text(locale.joinGroup),
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 88,
+                      height: 88,
+                      decoration: BoxDecoration(
+                        color: cs.primary.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(28),
                       ),
-                      const SizedBox(width: 16),
-                      FilledButton.icon(
-                        onPressed: _createGroup,
-                        icon: const Icon(Icons.add),
-                        label: Text(locale.createGroup),
+                      child: Icon(
+                        Icons.groups_outlined,
+                        size: 44,
+                        color: cs.primary.withValues(alpha: 0.4),
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      locale.noGroupsYet,
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: cs.onSurface.withValues(alpha: 0.7),
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      locale.noGroupsHint,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.4),
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _joinGroup,
+                          icon: const Icon(Icons.login),
+                          label: Text(locale.joinGroup),
+                        ),
+                        const SizedBox(width: 16),
+                        FilledButton.icon(
+                          onPressed: _createGroup,
+                          icon: const Icon(Icons.add),
+                          label: Text(locale.createGroup),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             );
           }
@@ -157,58 +181,94 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 final group = groupService.myGroups[index - 1];
                 final isLeader = group.isLeader(auth.currentUser?.uid ?? '');
+                final isDark = Theme.of(context).brightness == Brightness.dark;
 
-                return Card(
+                return Container(
                   margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? const Color(0xFF282A2D)
+                        : const Color(0xFFF7F9FC),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white12
+                          : Colors.black.withValues(alpha: 0.06),
+                    ),
+                  ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 20,
                       vertical: 12,
                     ),
-                    leading: CircleAvatar(
-                      backgroundColor: cs.primaryContainer,
-                      child: Text(
-                        group.name.isNotEmpty
-                            ? group.name[0].toUpperCase()
-                            : 'G',
-                        style: TextStyle(color: cs.onPrimaryContainer),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    leading: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: isLeader
+                              ? [cs.primary, cs.tertiary]
+                              : [cs.primary.withValues(alpha: 0.7), cs.primary],
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Center(
+                        child: Text(
+                          group.name.isNotEmpty
+                              ? group.name[0].toUpperCase()
+                              : 'G',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
                       ),
                     ),
                     title: Text(
                       group.name,
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                         fontSize: 16,
                       ),
                     ),
                     subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.only(top: 6),
                       child: Row(
                         children: [
                           Icon(
-                            Icons.person_outline,
+                            Icons.people_outline,
                             size: 14,
-                            color: cs.onSurfaceVariant,
+                            color: cs.onSurface.withValues(alpha: 0.5),
                           ),
                           const SizedBox(width: 4),
-                          Text('${group.memberUids.length} ${locale.members}'),
+                          Text(
+                            '${group.memberUids.length} ${locale.members}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: cs.onSurface.withValues(alpha: 0.6),
+                            ),
+                          ),
                           if (isLeader) ...[
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 10),
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
+                                horizontal: 8,
+                                vertical: 3,
                               ),
                               decoration: BoxDecoration(
-                                color: cs.tertiaryContainer,
-                                borderRadius: BorderRadius.circular(4),
+                                color: cs.tertiary.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
                                 locale.leader,
                                 style: TextStyle(
-                                  fontSize: 10,
-                                  color: cs.onTertiaryContainer,
-                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                  color: cs.tertiary,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
                             ),
@@ -216,7 +276,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                     ),
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: cs.onSurface.withValues(alpha: 0.3),
+                    ),
                     onTap: () {
                       groupService.setActiveGroup(group);
                       Navigator.push(

@@ -1,31 +1,43 @@
+# ──────────────────────────────────────────────
 # Flutter / Dart
+# ──────────────────────────────────────────────
 .dart_tool/
 .packages
-build/
-*.dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
+build/
 
+# ──────────────────────────────────────────────
 # Pub
+# ──────────────────────────────────────────────
 .pub-cache/
 .pub/
 
+# ──────────────────────────────────────────────
+# Test coverage
+# ──────────────────────────────────────────────
+coverage/
+
+# ──────────────────────────────────────────────
 # IDE
+# ──────────────────────────────────────────────
 .idea/
 .vscode/
 *.iml
+*.iws
+*.ipr
 
-# macOS
+# ──────────────────────────────────────────────
+# macOS system
+# ──────────────────────────────────────────────
 .DS_Store
-*.xcworkspace/
-Pods/
+**/.DS_Store
 
-# Android
-local.properties
-android/.gradle/
-android/app/debug/
-android/app/profile/
-android/app/release/
+# ──────────────────────────────────────────────
+# Xcode / CocoaPods (iOS & macOS desktop)
+# ──────────────────────────────────────────────
+**/*.xcworkspace/
+Pods/
 
 # iOS
 ios/Pods/
@@ -33,12 +45,52 @@ ios/.symlinks/
 ios/Flutter/Flutter.framework
 ios/Flutter/Flutter.podspec
 
-# Firebase sensitive files (do NOT commit to public repos)
+# macOS desktop
+macos/Pods/
+macos/.symlinks/
+
+# ──────────────────────────────────────────────
+# Android
+# ──────────────────────────────────────────────
+local.properties
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+
+# Android signing — never commit these
+android/key.properties
+**/*.keystore
+**/*.jks
+
+# ──────────────────────────────────────────────
+# Firebase sensitive files
+# (do NOT commit to public repos)
+# ──────────────────────────────────────────────
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
 
-# Personal notes / secrets
+# ──────────────────────────────────────────────
+# Secrets / environment files
+# ──────────────────────────────────────────────
+*.env
+.env.*
+!.env.example
 API-key.md
 
+# ──────────────────────────────────────────────
 # Web build output
+# ──────────────────────────────────────────────
 web/flutter_service_worker.js
+
+# ──────────────────────────────────────────────
+# Claude AI
+# ──────────────────────────────────────────────
+CLAUDE.md
+.claude/
+
+# ──────────────────────────────────────────────
+# Logs & misc
+# ──────────────────────────────────────────────
+*.log
+*.orig
