@@ -64,12 +64,16 @@ class ChatService extends ChangeNotifier {
         groupId: _activeGroupId!,
         rounds: _discussionRounds,
         mode: mode == DiscussionMode.sequential ? 'sequential' : 'concurrent',
+        outputLengthLimit: _outputLengthLimit,
       );
     }
   }
 
   int _discussionRounds = 1;
   int get discussionRounds => _discussionRounds;
+
+  String _outputLengthLimit = 'unlimited';
+  String get outputLengthLimit => _outputLengthLimit;
 
   Future<void> setDiscussionRounds(int rounds) async {
     _discussionRounds = rounds;
@@ -82,10 +86,29 @@ class ChatService extends ChangeNotifier {
         mode: _discussionMode == DiscussionMode.sequential
             ? 'sequential'
             : 'concurrent',
+        outputLengthLimit: _outputLengthLimit,
       );
     } else {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('discussion_rounds', rounds);
+    }
+  }
+
+  Future<void> setOutputLengthLimit(String limit) async {
+    _outputLengthLimit = limit;
+    notifyListeners();
+    if (_activeGroupId != null) {
+      await _groupService.updateDiscussionSettings(
+        groupId: _activeGroupId!,
+        rounds: _discussionRounds,
+        mode: _discussionMode == DiscussionMode.sequential
+            ? 'sequential'
+            : 'concurrent',
+        outputLengthLimit: limit,
+      );
+    } else {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('output_length_limit', limit);
     }
   }
 
@@ -150,9 +173,13 @@ class ChatService extends ChangeNotifier {
               ? DiscussionMode.concurrent
               : DiscussionMode.sequential;
           final newRounds = group.discussionRounds;
-          if (_discussionMode != newMode || _discussionRounds != newRounds) {
+          final newLimit = group.outputLengthLimit;
+          if (_discussionMode != newMode ||
+              _discussionRounds != newRounds ||
+              _outputLengthLimit != newLimit) {
             _discussionMode = newMode;
             _discussionRounds = newRounds;
+            _outputLengthLimit = newLimit;
             notifyListeners();
           }
         });
@@ -304,6 +331,7 @@ class ChatService extends ChangeNotifier {
     }
 
     _discussionRounds = prefs.getInt('discussion_rounds') ?? 1;
+    _outputLengthLimit = prefs.getString('output_length_limit') ?? 'unlimited';
 
     notifyListeners();
   }
@@ -500,8 +528,10 @@ class ChatService extends ChangeNotifier {
 
     if (_discussionMode == DiscussionMode.sequential) {
       // 2. Sequential Discussion Pipeline (Multi-Round)
-      // For direct @mentions (user targeting a specific agent), always single round
-      final effectiveRounds = isDirectMention ? 1 : _discussionRounds;
+      // Single agent or direct @mention → always single round, no debate framing
+      final isSingleAgent = participatingAgents.length == 1;
+      final effectiveRounds =
+          (isDirectMention || isSingleAgent) ? 1 : _discussionRounds;
       for (int i = 0; i < effectiveRounds; i++) {
         if (_isCancelled) break;
         if (effectiveRounds > 1) {
@@ -524,7 +554,7 @@ class ChatService extends ChangeNotifier {
           // Strict reply-attribution instruction:
           // The LLM must put ONLY "@SomeName" on the very first line if replying
           // to someone specific, and nothing else on that line.
-          final replyHint = (_messages.length > 1 && !isDirectMention)
+          final replyHint = (_messages.length > 1 && !isDirectMention && !isSingleAgent)
               ? "\n\n【严格格式指令 — 必须遵守】：如果你的回复主要针对某一个特定人的观点，你必须在回复的第一行单独写 @对方名字（例如：@先锋艺术家），该行不能有任何其他文字。第二行起再写正文内容。如果是综合性发言，直接写正文，不要加 @ 标注。"
               : "";
           final history = _buildHistoryPayload(agent, 6);
@@ -912,6 +942,18 @@ class ChatService extends ChangeNotifier {
     }
   }
 
+  String _buildSystemPrompt(String baseInstruction) {
+    if (_outputLengthLimit == 'unlimited') return baseInstruction;
+    final promptMap = {
+      'concise': '【输出长度限制】：请用最简洁的语言回答，控制在100字以内，直击要点。',
+      'medium': '【输出长度限制】：请给出适度详细的分析，控制在300字左右。',
+      'detailed': '【输出长度限制】：请给出详细、深入的分析，控制在600字左右。',
+    };
+    final prompt = promptMap[_outputLengthLimit];
+    if (prompt == null) return baseInstruction;
+    return '$baseInstruction\n\n$prompt';
+  }
+
   Stream<String> _callLLMStream(
     AgentPersona agent,
     List<Map<String, String>> historyMessages,
@@ -946,17 +988,26 @@ class ChatService extends ChangeNotifier {
         : agent.modelName;
 
     final List<Map<String, String>> messages = [
-      {'role': 'system', 'content': agent.systemInstruction},
+      {'role': 'system', 'content': _buildSystemPrompt(agent.systemInstruction)},
       // Inject history from sliding window (excludes system messages which are already at top)
       ...historyMessages.where((m) => m['role'] != 'system'),
       {'role': 'user', 'content': currentPrompt},
     ];
 
+    final maxTokensMap = {
+      'concise': 512,
+      'medium': 1024,
+      'detailed': 2048,
+      'unlimited': 4096,
+    };
+    final maxTokens = maxTokensMap[_outputLengthLimit] ?? 4096;
+
     final body = jsonEncode({
       "model": modelToUse,
       "messages": messages,
       "temperature": 0.7,
-      "stream": true, // Request streaming!
+      "max_tokens": maxTokens,
+      "stream": true,
     });
 
     final request = http.Request('POST', Uri.parse(baseUrl));

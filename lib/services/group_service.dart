@@ -241,10 +241,12 @@ class GroupService extends ChangeNotifier {
     required String groupId,
     required int rounds,
     required String mode,
+    String outputLengthLimit = 'unlimited',
   }) async {
     await _db.collection('groups').doc(groupId).update({
       'discussionRounds': rounds,
       'discussionMode': mode,
+      'outputLengthLimit': outputLengthLimit,
     });
   }
 

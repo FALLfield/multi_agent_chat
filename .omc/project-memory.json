@@ -169,20 +169,92 @@
   "hotPaths": [
     {
       "path": "lib/services/chat_service.dart",
-      "accessCount": 7,
-      "lastAccessed": 1775570677571,
+      "accessCount": 36,
+      "lastAccessed": 1775573225278,
+      "type": "file"
+    },
+    {
+      "path": "lib/screens/agent_edit_dialog.dart",
+      "accessCount": 20,
+      "lastAccessed": 1775572095391,
+      "type": "file"
+    },
+    {
+      "path": "lib/screens/chat_screen.dart",
+      "accessCount": 16,
+      "lastAccessed": 1775573460171,
+      "type": "file"
+    },
+    {
+      "path": "lib/widgets/chat_message_widget.dart",
+      "accessCount": 12,
+      "lastAccessed": 1775572065292,
       "type": "file"
     },
     {
       "path": "PPT_Guide.md",
-      "accessCount": 5,
-      "lastAccessed": 1775552517822,
+      "accessCount": 8,
+      "lastAccessed": 1775574034703,
+      "type": "file"
+    },
+    {
+      "path": "lib/services/locale_service.dart",
+      "accessCount": 7,
+      "lastAccessed": 1775572037099,
       "type": "file"
     },
     {
       "path": "README.md",
+      "accessCount": 6,
+      "lastAccessed": 1775572070441,
+      "type": "file"
+    },
+    {
+      "path": "lib/models/group.dart",
+      "accessCount": 5,
+      "lastAccessed": 1775571712429,
+      "type": "file"
+    },
+    {
+      "path": "lib/screens/agent_list_screen.dart",
+      "accessCount": 5,
+      "lastAccessed": 1775572065637,
+      "type": "file"
+    },
+    {
+      "path": "lib/screens/group_settings_dialog.dart",
+      "accessCount": 5,
+      "lastAccessed": 1775572135895,
+      "type": "file"
+    },
+    {
+      "path": "lib/services/group_service.dart",
+      "accessCount": 4,
+      "lastAccessed": 1775571994895,
+      "type": "file"
+    },
+    {
+      "path": "lib/screens",
       "accessCount": 3,
-      "lastAccessed": 1775570231383,
+      "lastAccessed": 1775571265077,
+      "type": "directory"
+    },
+    {
+      "path": "lib",
+      "accessCount": 3,
+      "lastAccessed": 1775571421433,
+      "type": "directory"
+    },
+    {
+      "path": "lib/widgets",
+      "accessCount": 2,
+      "lastAccessed": 1775571276719,
+      "type": "directory"
+    },
+    {
+      "path": "lib/services/database_service.dart",
+      "accessCount": 2,
+      "lastAccessed": 1775571445250,
       "type": "file"
     },
     {
@@ -192,15 +264,9 @@
       "type": "file"
     },
     {
-      "path": "lib/services/database_service.dart",
+      "path": "lib/models/agent_persona.dart",
       "accessCount": 1,
-      "lastAccessed": 1775570180620,
-      "type": "file"
-    },
-    {
-      "path": "lib/services/group_service.dart",
-      "accessCount": 1,
-      "lastAccessed": 1775570180675,
+      "lastAccessed": 1775571445188,
       "type": "file"
     }
   ],

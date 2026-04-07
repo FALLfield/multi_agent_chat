@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:provider/provider.dart';
 
 import '../models/chat_message.dart';
+import '../services/locale_service.dart';
 
 class ChatMessageWidget extends StatefulWidget {
   final ChatMessage message;
@@ -28,9 +30,10 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
   }
 
   Widget _buildUserMessage(BuildContext context) {
+    final locale = Provider.of<LocaleService>(context);
     String? senderName = widget.message.senderName;
     if (senderName == null || senderName.trim().isEmpty) {
-      senderName = "User";
+      senderName = locale.user;
     }
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -194,9 +197,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                       color: Colors.amber,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
-                                    child: const Text(
-                                      'FINAL SUMMARY',
-                                      style: TextStyle(
+                                    child: Text(
+                                      Provider.of<LocaleService>(context).finalSummary,
+                                      style: const TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold,
                                         color: Colors.black,
@@ -219,7 +222,9 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                 // Copy button
                                 _ToolbarButton(
                                   icon: _copied ? Icons.check : Icons.copy,
-                                  label: _copied ? 'Copied' : 'Copy',
+                                  label: _copied
+                                      ? Provider.of<LocaleService>(context).copied
+                                      : Provider.of<LocaleService>(context).copy,
                                   color: _copied ? Colors.green : null,
                                   onTap: () async {
                                     await Clipboard.setData(
@@ -238,7 +243,7 @@ class _ChatMessageWidgetState extends State<ChatMessageWidget> {
                                 if (widget.onReply != null)
                                   _ToolbarButton(
                                     icon: Icons.gavel,
-                                    label: 'Debate',
+                                    label: Provider.of<LocaleService>(context).debate,
                                     onTap: () =>
                                         widget.onReply!(widget.message.text),
                                   ),
@@ -421,10 +426,11 @@ class _ThinkingTextState extends State<_ThinkingText>
 
   @override
   Widget build(BuildContext context) {
+    final locale = Provider.of<LocaleService>(context);
     return FadeTransition(
       opacity: _opacity,
       child: Text(
-        'Thinking...',
+        locale.thinking,
         style: TextStyle(
           color: Theme.of(context).colorScheme.onSurface,
           fontStyle: FontStyle.italic,

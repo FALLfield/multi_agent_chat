@@ -229,7 +229,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   final displayName =
                       authService.currentUser?.displayName ??
                       authService.currentUser?.email ??
-                      'there';
+                      locale.userFallback;
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1114,6 +1114,10 @@ class _ChatInputAreaState extends State<_ChatInputArea> {
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.enter) {
+      // Don't submit if IME is composing (Chinese/Japanese/Korean input)
+      if (widget.controller.value.composing.isValid) {
+        return KeyEventResult.ignored;
+      }
       if (HardwareKeyboard.instance.logicalKeysPressed.contains(
             LogicalKeyboardKey.shiftLeft,
           ) ||

@@ -10,6 +10,7 @@ class Group {
   final DateTime createdAt;
   final int discussionRounds;
   final String discussionMode; // 'sequential' | 'concurrent'
+  final String outputLengthLimit; // 'concise' | 'medium' | 'detailed' | 'unlimited'
 
   Group({
     required this.id,
@@ -23,6 +24,7 @@ class Group {
     required this.createdAt,
     this.discussionRounds = 1,
     this.discussionMode = 'sequential',
+    this.outputLengthLimit = 'unlimited',
   });
 
   bool isLeader(String uid) => leaderUid == uid;
@@ -42,6 +44,7 @@ class Group {
           : DateTime.now(),
       discussionRounds: (map['discussionRounds'] as num?)?.toInt() ?? 1,
       discussionMode: map['discussionMode'] as String? ?? 'sequential',
+      outputLengthLimit: map['outputLengthLimit'] as String? ?? 'unlimited',
     );
   }
 
@@ -57,6 +60,7 @@ class Group {
       'createdAt': createdAt.toIso8601String(),
       'discussionRounds': discussionRounds,
       'discussionMode': discussionMode,
+      'outputLengthLimit': outputLengthLimit,
     };
   }
 }

@@ -160,6 +160,66 @@ class LocaleService extends ChangeNotifier {
       _isChinese ? '暂无 Agent，请添加。' : 'No agents configured. Add one below.';
   String get cannotDeleteLastAgent =>
       _isChinese ? '不能删除最后一个 Agent！' : 'Cannot delete the last agent!';
+  String get edit => _isChinese ? '编辑' : 'Edit';
+
+  // Agent Edit Dialog
+  String get createNewAgent =>
+      _isChinese ? '创建新 Agent' : 'Create New Agent';
+  String get editAgent => _isChinese ? '编辑 Agent' : 'Edit Agent';
+  String get agentName => _isChinese ? 'Agent 名称' : 'Agent Name';
+  String get agentNameHint =>
+      _isChinese ? '例如：前端专家' : 'e.g. Frontend Expert';
+  String get providerProtocol =>
+      _isChinese ? '供应商协议' : 'Provider Protocol';
+  String get modelName => _isChinese ? '模型名称' : 'Model Name';
+  String get modelNameHint =>
+      _isChinese ? '例如：deepseek-chat' : 'e.g. deepseek-chat';
+  String get modelNameHelper => _isChinese
+      ? '必须与供应商 API 的模型 ID 完全匹配'
+      : "Must exactly match the provider's API model ID";
+  String get apiKey => _isChinese ? 'API Key' : 'API Key';
+  String get apiKeyHint => _isChinese ? 'sk-...' : 'sk-...';
+  String get doubaoEndpointId =>
+      _isChinese ? '豆包接入点 ID' : 'Doubao Endpoint ID';
+  String get systemInstruction =>
+      _isChinese ? '系统指令（提示上下文）' : 'System Instruction (Prompt Context)';
+  String get systemInstructionHint => _isChinese
+      ? '描述此 AI 的性格、专业领域和行为方式...'
+      : "Describe this AI's personality, expertise, and how it should behave...";
+  String get saveAgent =>
+      _isChinese ? '保存 Agent' : 'Save Agent';
+  String get validationEmptyFields => _isChinese
+      ? '名称、模型名称和 API Key 不能为空'
+      : 'Name, Model Name and API Key cannot be empty';
+  String get recommendedTemplates =>
+      _isChinese ? '推荐模板' : 'Recommended Templates';
+
+  // Agent Templates
+  String get templateAnalyst =>
+      _isChinese ? '理性分析师' : 'Rational Analyst';
+  String get templateAnalystDesc => _isChinese
+      ? '你是一位严谨的理性分析师。你擅长用数据、逻辑和事实来支撑论点，善于发现论证中的漏洞和矛盾。发言时保持客观中立，避免情绪化表达，每次发言聚焦于最核心的一个论点。'
+      : 'You are a rigorous rational analyst. You excel at supporting arguments with data, logic, and facts, and are skilled at identifying flaws and contradictions in reasoning. Maintain objectivity, avoid emotional expression, and focus each response on the single most core argument.';
+  String get templateCreative =>
+      _isChinese ? '创意先锋' : 'Creative Pioneer';
+  String get templateCreativeDesc => _isChinese
+      ? '你是一位充满创意的思想先锋。你喜欢打破常规，提出颠覆性的想法和非主流视角。你鼓励大胆假设，不怕犯错，善于用类比和故事来阐述观点。发言时充满热情，富有感染力。'
+      : 'You are a creative thought pioneer full of innovative ideas. You enjoy breaking conventions, proposing disruptive ideas and unconventional perspectives. You encourage bold hypotheses, are unafraid of mistakes, and excel at using analogies and stories to illustrate points. Speak with passion and infectious enthusiasm.';
+  String get templateCritic =>
+      _isChinese ? '批判者' : 'Critic';
+  String get templateCriticDesc => _isChinese
+      ? '你是一位犀利的批判者。你的职责是质疑一切假设，挑战现有观点的合理性。你善于找出论点的弱点、潜在风险和被忽视的反例。发言直接、尖锐，但始终基于逻辑而非情绪。'
+      : 'You are a sharp critic. Your role is to question all assumptions and challenge the validity of existing viewpoints. You excel at identifying weaknesses in arguments, potential risks, and overlooked counterexamples. Be direct and incisive, but always grounded in logic rather than emotion.';
+  String get templatePragmatist =>
+      _isChinese ? '实用主义者' : 'Pragmatist';
+  String get templatePragmatistDesc => _isChinese
+      ? '你是一位务实的实用主义者。你关注的是"这个方案在现实中能否落地"。你会从执行成本、时间、资源和可行性角度评估每个观点，并倾向于提出具体、可操作的改进建议。'
+      : 'You are a pragmatic realist. Your focus is on whether a solution can actually be implemented in practice. You evaluate each viewpoint from the perspective of execution cost, time, resources, and feasibility, and tend to propose specific, actionable improvement suggestions.';
+  String get templateHumanist =>
+      _isChinese ? '人文关怀者' : 'Humanist';
+  String get templateHumanistDesc => _isChinese
+      ? '你是一位注重人文关怀的思考者。你从人的情感、伦理、社会影响和弱势群体的角度审视问题。你提醒大家不要只看效率和利益，还要关注方案对人的尊严、公平和心理健康的影响。'
+      : 'You are a thinker who values humanistic care. You examine issues from the perspective of human emotions, ethics, social impact, and vulnerable groups. You remind everyone not to focus solely on efficiency and profit, but also to consider the impact on human dignity, fairness, and mental well-being.';
 
   // Chat Screen
   String get stopGeneration => _isChinese ? '停止' : 'Stop';
@@ -173,4 +233,26 @@ class LocaleService extends ChangeNotifier {
       : 'Ask a question. @mention or select agents above.';
   String get discussionHistory => _isChinese ? '讨论记录' : 'Discussion History';
   String get management => _isChinese ? '管理' : 'Management';
+
+  // Output Length
+  String get outputLengthLimit =>
+      _isChinese ? '输出长度' : 'Output Length';
+  String get outputConcise =>
+      _isChinese ? '简短' : 'Concise';
+  String get outputMedium =>
+      _isChinese ? '适中' : 'Medium';
+  String get outputDetailed =>
+      _isChinese ? '详细' : 'Detailed';
+  String get outputUnlimited =>
+      _isChinese ? '不限' : 'Unlimited';
+
+  // Chat Message Widget
+  String get user => _isChinese ? '用户' : 'User';
+  String get thinking => _isChinese ? '正在思考...' : 'Thinking...';
+  String get copied => _isChinese ? '已复制' : 'Copied';
+  String get copy => _isChinese ? '复制' : 'Copy';
+  String get finalSummary =>
+      _isChinese ? '最终总结' : 'FINAL SUMMARY';
+  String get debate => _isChinese ? '辩论' : 'Debate';
+  String get userFallback => _isChinese ? '用户' : 'there';
 }

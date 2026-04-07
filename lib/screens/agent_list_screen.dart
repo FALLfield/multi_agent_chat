@@ -164,7 +164,7 @@ class AgentListScreen extends StatelessWidget {
                                       AgentEditDialog(existingAgent: agent),
                                 );
                               },
-                              tooltip: 'Edit',
+                              tooltip: locale.edit,
                               constraints: const BoxConstraints(
                                 minWidth: 36,
                                 minHeight: 36,
@@ -180,7 +180,7 @@ class AgentListScreen extends StatelessWidget {
                                 onPressed: () {
                                   chatService.deleteAgent(agent.id);
                                 },
-                                tooltip: 'Delete',
+                                tooltip: locale.delete,
                                 constraints: const BoxConstraints(
                                   minWidth: 36,
                                   minHeight: 36,

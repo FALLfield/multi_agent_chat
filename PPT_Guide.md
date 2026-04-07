@@ -60,15 +60,38 @@
 
 ## Slide 3 — Requirements & Design Summary
 
-### 需求摘要
+### 需求摘要（Requirements Summary）
 
-| 维度       | 要点                                                              |
-| ---------- | ----------------------------------------------------------------- |
-| 用户角色   | Group Leader（管理 Agent 和设置）/ Group Member（参与讨论）/ 游客 |
-| Agent 管理 | 每人独立配置：名称、人格 Prompt、LLM 提供商、API Key              |
-| 讨论模式   | 顺序模式（N轮辩论+结论阶段）/ 并发模式（同时回答）                |
-| 智能交互   | @AgentName 定向触发 / @UserName 注入上下文 / 流式输出             |
-| 实时同步   | Firestore 驱动，群组成员即时看到所有变化                          |
+|                      1                      |                  2                  |                            3                             |                                4                                 |                            5                             |
+| :-----------------------------------------: | :---------------------------------: | :------------------------------------------------------: | :--------------------------------------------------------------: | :------------------------------------------------------: |
+|              **User Roles** 👤              |     **Agent Configuration** ⚙️      |                 **Discussion Modes** 🔄                  |                     **Smart Interaction** 🎯                     |                  **Real-time Sync** 🔥                   |
+|  Group Leader:<br>Manage agents & settings  | Name & Persona Prompt<br>per agent  | Sequential Mode:<br>N-round debate +<br>conclusion phase |        @AgentName:<br>Direct trigger to<br>specific agent        |            Firestore-driven<br>real-time sync            |
+| Group Member:<br>Participate in discussions | LLM Provider selection<br>per agent | Concurrent Mode:<br>All agents respond<br>simultaneously |      @UserName:<br>Inject user context<br>(last 3 messages)      | Millisecond-level<br>propagation to<br>all group members |
+|                                             |  Independent API Key<br>per agent   |                                                          | Streaming output:<br>Real-time character-<br>by-character render |                                                          |
+
+<details>
+<summary>📐 LaTeX 格式（适用于 Beamer/学术幻灯片）</summary>
+
+```latex
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{User Roles} & \textbf{Agent Config} & \textbf{Discussion Mode} & \textbf{Smart Interaction} & \textbf{Real-time Sync} \\
+\hline
+\makecell{Group Leader:\\Manage agents\\\& settings} &
+\makecell{Name \& Persona\\Prompt per agent\\LLM Provider\\Independent API Key} &
+\makecell{Sequential:\\N-round debate\\+ conclusion\\Concurrent:\\All respond at once} &
+\makecell{@AgentName:\\Direct trigger\\@UserName:\\Inject context\\Streaming output} &
+\makecell{Firestore-driven\\Millisecond sync\\All members see\\changes instantly} \\
+\hline
+\end{tabular}
+\caption{Requirements Summary}
+\end{table}
+```
+
+</details>
 
 ### 架构设计一句话总结
 

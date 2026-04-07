@@ -200,6 +200,54 @@ class GroupSettingsDialog extends StatelessWidget {
                                   chatService.setDiscussionRounds(val.toInt())
                             : null,
                       ),
+                    const SizedBox(height: 12),
+                    // Output length limit
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.text_fields,
+                          size: 18,
+                          color: colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          locale.outputLengthLimit,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: colorScheme.onSurface.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        const Spacer(),
+                        SegmentedButton<String>(
+                          segments: [
+                            ButtonSegment(
+                              value: 'concise',
+                              label: Text(locale.outputConcise),
+                            ),
+                            ButtonSegment(
+                              value: 'medium',
+                              label: Text(locale.outputMedium),
+                            ),
+                            ButtonSegment(
+                              value: 'detailed',
+                              label: Text(locale.outputDetailed),
+                            ),
+                            ButtonSegment(
+                              value: 'unlimited',
+                              label: Text(locale.outputUnlimited),
+                            ),
+                          ],
+                          selected: {chatService.outputLengthLimit},
+                          onSelectionChanged: isLeader
+                              ? (val) =>
+                                  chatService.setOutputLengthLimit(val.first)
+                              : null,
+                          style: const ButtonStyle(
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 );
               },
