@@ -1,0 +1,208 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1775552070562,
+  "projectRoot": "/Users/fallfield/Desktop/Projects/multi_agent_chat",
+  "techStack": {
+    "languages": [],
+    "frameworks": [],
+    "packageManager": null,
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "lib",
+      "test"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "android": {
+      "path": "android",
+      "purpose": null,
+      "fileCount": 8,
+      "lastAccessed": 1775552070549,
+      "keyFiles": [
+        "build.gradle.kts",
+        "gradle.properties",
+        "gradlew",
+        "gradlew.bat",
+        "local.properties"
+      ]
+    },
+    "build": {
+      "path": "build",
+      "purpose": "Build output",
+      "fileCount": 1,
+      "lastAccessed": 1775552070554,
+      "keyFiles": [
+        "8730b13ca0249799964d0a71255a8f3b.cache.dill.track.dill"
+      ]
+    },
+    "ios": {
+      "path": "ios",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1775552070555,
+      "keyFiles": [
+        "Podfile"
+      ]
+    },
+    "lib": {
+      "path": "lib",
+      "purpose": "Library code",
+      "fileCount": 2,
+      "lastAccessed": 1775552070556,
+      "keyFiles": [
+        "firebase_options.dart",
+        "main.dart"
+      ]
+    },
+    "linux": {
+      "path": "linux",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1775552070556,
+      "keyFiles": [
+        "CMakeLists.txt"
+      ]
+    },
+    "macos": {
+      "path": "macos",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1775552070557,
+      "keyFiles": [
+        "Podfile",
+        "Podfile.lock"
+      ]
+    },
+    "test": {
+      "path": "test",
+      "purpose": "Test files",
+      "fileCount": 1,
+      "lastAccessed": 1775552070557,
+      "keyFiles": [
+        "widget_test.dart"
+      ]
+    },
+    "web": {
+      "path": "web",
+      "purpose": null,
+      "fileCount": 5,
+      "lastAccessed": 1775552070558,
+      "keyFiles": [
+        "favicon.png",
+        "index.html",
+        "manifest.json",
+        "sqflite_sw.js",
+        "sqlite3.wasm"
+      ]
+    },
+    "windows": {
+      "path": "windows",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1775552070558,
+      "keyFiles": [
+        "CMakeLists.txt"
+      ]
+    },
+    "android/app": {
+      "path": "android/app",
+      "purpose": "Application code",
+      "fileCount": 2,
+      "lastAccessed": 1775552070558,
+      "keyFiles": [
+        "build.gradle.kts",
+        "google-services.json"
+      ]
+    },
+    "android/build": {
+      "path": "android/build",
+      "purpose": "Build output",
+      "fileCount": 0,
+      "lastAccessed": 1775552070558,
+      "keyFiles": []
+    },
+    "lib/models": {
+      "path": "lib/models",
+      "purpose": "Data models",
+      "fileCount": 5,
+      "lastAccessed": 1775552070559,
+      "keyFiles": [
+        "agent_persona.dart",
+        "chat_message.dart",
+        "chat_session.dart"
+      ]
+    },
+    "lib/services": {
+      "path": "lib/services",
+      "purpose": "Business logic services",
+      "fileCount": 8,
+      "lastAccessed": 1775552070560,
+      "keyFiles": [
+        "auth_service.dart",
+        "chat_service.dart",
+        "database_service.dart"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "lib/services/chat_service.dart",
+      "accessCount": 7,
+      "lastAccessed": 1775570677571,
+      "type": "file"
+    },
+    {
+      "path": "PPT_Guide.md",
+      "accessCount": 5,
+      "lastAccessed": 1775552517822,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 3,
+      "lastAccessed": 1775570231383,
+      "type": "file"
+    },
+    {
+      "path": "Development.md",
+      "accessCount": 1,
+      "lastAccessed": 1775552250120,
+      "type": "file"
+    },
+    {
+      "path": "lib/services/database_service.dart",
+      "accessCount": 1,
+      "lastAccessed": 1775570180620,
+      "type": "file"
+    },
+    {
+      "path": "lib/services/group_service.dart",
+      "accessCount": 1,
+      "lastAccessed": 1775570180675,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

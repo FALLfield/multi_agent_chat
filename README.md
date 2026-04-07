@@ -200,25 +200,36 @@ flutter pub get
 
 ### Firestore 安全规则（建议）
 
+> 所有集合均为顶级集合（`groups`、`agents`、`sessions`、`messages`、`users`），非子集合。
+
 ```
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /groups/{groupId} {
-      allow read: if request.auth.uid in resource.data.memberUids;
+      allow read: if request.auth != null
+                   && request.auth.uid in resource.data.memberUids;
       allow create: if request.auth != null;
-      allow update, delete: if request.auth.uid == resource.data.leaderUid;
-
-      match /agents/{agentId} {
-        allow read: if request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberUids;
-        allow write: if request.auth.uid == get(/databases/$(database)/documents/groups/$(groupId)).data.leaderUid;
-      }
+      allow update: if request.auth != null
+                    && request.auth.uid in resource.data.memberUids;
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.leaderUid;
     }
+
+    match /agents/{agentId} {
+      allow read, write: if request.auth != null;
+    }
+
     match /sessions/{sessionId} {
       allow read, write: if request.auth != null;
-      match /messages/{messageId} {
-        allow read, write: if request.auth != null;
-      }
+    }
+
+    match /messages/{messageId} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /users/{userId} {
+      allow read, write: if request.auth != null;
     }
   }
 }

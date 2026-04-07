@@ -132,7 +132,9 @@ class ChatService extends ChangeNotifier {
       agents,
     ) {
       _activeAgents = agents;
-      // Auto-select all agents if none are currently participating
+      _participatingAgentIds.removeWhere(
+        (id) => !agents.any((a) => a.id == id),
+      );
       if (_participatingAgentIds.isEmpty && agents.isNotEmpty) {
         _participatingAgentIds = agents.map((a) => a.id).toSet();
       }
@@ -196,7 +198,9 @@ class ChatService extends ChangeNotifier {
   Future<void> _loadAgents() async {
     if (_activeGroupId == null) return;
     _activeAgents = await _dbService.getAgents(_activeGroupId!);
-    // Auto-select all agents if none are currently participating
+    _participatingAgentIds.removeWhere(
+      (id) => !_activeAgents.any((a) => a.id == id),
+    );
     if (_participatingAgentIds.isEmpty && _activeAgents.isNotEmpty) {
       _participatingAgentIds = _activeAgents.map((a) => a.id).toSet();
     }
@@ -355,6 +359,7 @@ class ChatService extends ChangeNotifier {
   Future<void> deleteAgent(String id) async {
     await _dbService.deleteAgent(id);
     _activeAgents.removeWhere((a) => a.id == id);
+    _participatingAgentIds.remove(id);
     notifyListeners();
   }
 
